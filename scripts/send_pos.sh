@@ -3,7 +3,7 @@
 source ~/.bashrc
 
 ISOSIM_FORCE_TOPIC=/ROSforceOutput
-ISOSIM_FORCE_TYPE=franka_panda_controller_swc/ForceOutput
+ISOSIM_FORCE_TYPE=panda_ros/ForceOutput
 ISOSIM_PUB_FREQ=20
 
 FORCE_TIME=-1.0; # dummy time to be adapted by isosim
