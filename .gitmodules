@@ -1,0 +1,3 @@
+[submodule "rosbridgecpp"]
+	path = rosbridgecpp
+	url = https://github.com/ppianpak/rosbridgecpp.git
