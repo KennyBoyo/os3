@@ -1,5 +1,6 @@
 #include <ctime>
 #include <chrono>
+#include <math.h>
 #include "OS3ROS.h"
 
 using namespace SimTK;
@@ -226,6 +227,101 @@ void advertiserCallback(std::shared_ptr<WsClient::Connection> /*connection*/, st
 }
 
 
+// void forceSubscriberCallback(std::shared_ptr<WsClient::Connection> /*connection*/, std::shared_ptr<WsClient::InMessage> in_message)
+// {  
+
+//     // auto callIn =  std::chrono::steady_clock::now();
+//     #undef DEBUG
+//     #ifdef DEBUG
+//     std::cout << "subscriberCallback(): Message Received: " << in_message->string() << std::endl; //THIS DESTROYS THE BUFFER AND SO CAN ONLY BE CALLED ONCE
+//     #endif 
+//     // #define DEBUG
+    
+  
+//     rapidjson::Document forceD;
+
+//     // char *cstr = new char[in_message->string().length() + 1];
+//     // strcpy(cstr, in_message->string().c_str());
+//     // std::cout << "msg length : " << in_message->string().length() << std::endl;
+//     // std::cout << "actual string received : " << cstr << std::endl;
+//     // std::cerr << "parse error: " << forceD.Parse(in_message->string().c_str()).GetParseError() << std::endl; while(1) {}
+//     if (forceD.Parse(in_message->string().c_str()).HasParseError() ) {
+//         std::cerr << "\n\nparse error\n" << std::endl;
+//     };
+
+//     #ifdef DEBUG
+//         rapidjson::StringBuffer buffer;
+//         buffer.Clear();
+//         rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
+//         forceD.Accept(writer);
+//         std::cout << std::endl << "msg received:   " << buffer.GetString() << std::endl << std::endl;
+//     #endif
+
+    
+//     assert(forceD.IsObject());    // Document is a JSON value represents the root of DOM. Root can be either an object or array.
+
+    
+
+//     assert(forceD.HasMember("msg"));
+//     #ifdef TWIST_TEST
+//     assert(forceD["msg"].HasMember("linear"));
+    
+//     assert(forceD["msg"]["linear"].HasMember("x"));
+//     assert(forceD["msg"]["linear"]["x"].IsDouble());
+
+//     // std::cout << forceD["msg"]["linear"]["x"].GetDouble() << std::endl;
+
+//     double x = forceD["msg"]["linear"]["x"].GetDouble();
+//     double y = forceD["msg"]["linear"]["y"].GetDouble();
+//     double z = forceD["msg"]["linear"]["z"].GetDouble();
+
+//     #endif
+
+//     assert(forceD["msg"].HasMember("force"));
+//     assert(forceD["msg"]["force"].HasMember("x"));
+//     assert(forceD["msg"].HasMember("time"));
+//     assert(forceD["msg"]["force"]["x"].IsDouble());
+//     assert(forceD["msg"]["time"].IsDouble());
+
+//     double x = forceD["msg"]["force"]["x"].GetDouble();
+//     double y = forceD["msg"]["force"]["y"].GetDouble();
+//     double z = forceD["msg"]["force"]["z"].GetDouble();
+//     double timestamp = forceD["msg"]["time"].GetDouble();
+
+//         forceBuffer[forceBufferIndex] = {x,y,z};
+//         forceBufferIndex++;
+//         forceBufferIndex = forceBufferIndex % 10; //cycle through each value in array 
+
+//         SimTK::Vec3 fSum = {0,0,0};
+
+//         for (int i = 0; i < 10; i++) {
+//             fSum = fSum + forceBuffer[i];
+//         }
+//         fSum = fSum / 10;
+
+//     {
+//         fInMutex.lock(); //locks mutex
+        
+        
+
+//         //save to global variable
+//         // latestForce = {x,y,z};
+//         latestForce = fSum;
+//         if (timestamp < 0) { //DEBUG CODE, USED TO SEND REPEATED INPUT WITHOUT FRANKA
+//             latestTime += 0.002;
+//         } else {
+//             latestTime = timestamp;
+//         }
+//         fInMutex.unlock(); // unlocks mutex
+//     }
+//     std::cout << " fReceived x: " << x << " y: " << y << " z: " << z << "time: " << timestamp << std::endl;
+    
+
+//     // auto callOut = std::chrono::steady_clock::now();
+//     // std::chrono::duration<double> callDur = std::chrono::duration_cast<std::chrono::duration<double>>(callOut - callIn);
+//     // std::cout << " calltime: " << callDur.count() << " ";
+// }
+
 void forceSubscriberCallback(std::shared_ptr<WsClient::Connection> /*connection*/, std::shared_ptr<WsClient::InMessage> in_message)
 {  
 
@@ -276,16 +372,37 @@ void forceSubscriberCallback(std::shared_ptr<WsClient::Connection> /*connection*
 
     #endif
 
-    assert(forceD["msg"].HasMember("force"));
-    assert(forceD["msg"]["force"].HasMember("x"));
-    assert(forceD["msg"].HasMember("time"));
-    assert(forceD["msg"]["force"]["x"].IsDouble());
-    assert(forceD["msg"]["time"].IsDouble());
+    assert(forceD["msg"].HasMember("wrench"));
+    assert(forceD["msg"]["wrench"].HasMember("force"));
+    assert(forceD["msg"]["wrench"]["force"].HasMember("x"));
+    assert(forceD["msg"]["wrench"]["force"].HasMember("y"));
+    assert(forceD["msg"]["wrench"]["force"].HasMember("z"));
+    assert(forceD["msg"]["wrench"]["force"]["x"].IsDouble());
+    assert(forceD["msg"]["wrench"]["force"]["y"].IsDouble());
+    assert(forceD["msg"]["wrench"]["force"]["z"].IsDouble());
 
-    double x = forceD["msg"]["force"]["x"].GetDouble();
-    double y = forceD["msg"]["force"]["y"].GetDouble();
-    double z = forceD["msg"]["force"]["z"].GetDouble();
-    double timestamp = forceD["msg"]["time"].GetDouble();
+    assert(forceD["msg"]["wrench"].HasMember("torque"));
+    assert(forceD["msg"]["wrench"]["torque"].HasMember("x"));
+    assert(forceD["msg"]["wrench"]["torque"].HasMember("y"));
+    assert(forceD["msg"]["wrench"]["torque"].HasMember("z"));
+    assert(forceD["msg"]["wrench"]["torque"]["x"].IsDouble());
+    assert(forceD["msg"]["wrench"]["torque"]["y"].IsDouble());
+    assert(forceD["msg"]["wrench"]["torque"]["z"].IsDouble());
+
+    assert(forceD["msg"].HasMember("header"));
+    assert(forceD["msg"]["header"].HasMember("stamp"));
+    assert(forceD["msg"]["header"]["stamp"].HasMember("secs"));
+    assert(forceD["msg"]["header"]["stamp"].HasMember("nsecs"));
+    assert(forceD["msg"]["header"]["stamp"]["secs"].IsUint());
+    assert(forceD["msg"]["header"]["stamp"]["nsecs"].IsUint());
+
+    double x = forceD["msg"]["wrench"]["force"]["x"].GetDouble();
+    double y = forceD["msg"]["wrench"]["force"]["y"].GetDouble();
+    double z = forceD["msg"]["wrench"]["force"]["z"].GetDouble();
+
+    // double timestamp = forceD["msg"]["header"]["stamp"]["secs"].GetUint() + (double) forceD["msg"]["header"]["stamp"]["secs"].GetUint()/pow(10, 9);
+    // double timestamp = forceD["msg"]["stamp"]["time"].GetDouble();
+    double timestamp = -1.0;
 
         forceBuffer[forceBufferIndex] = {x,y,z};
         forceBufferIndex++;
@@ -362,7 +479,8 @@ void forceSubscriberThread(RosbridgeWsClient& client, const std::future<void>& f
 
     client.addClient("topic_subscriber"); //TODO: put this in its own thread
     // RBcppClient.subscribe("topic_subscriber", "cartesian_impedance_controller_NR/force_output",forceSubscriberCallback);
-    client.subscribe("topic_subscriber", "/ROSforceOutput",forceSubscriberCallback);
+    // client.subscribe("topic_subscriber", "/ROSforceOutput",forceSubscriberCallback);
+    client.subscribe("topic_subscriber", "/franka_state_controller/F_ext",forceSubscriberCallback);
 
 
     while(futureObj.wait_for(std::chrono::microseconds(500*10000)) == std::future_status::timeout) {

@@ -17,11 +17,16 @@ class OS3ROS {
         int subscriber(void);
         int publisher(void);
 
+        // struct ForceInput {
+        //     SimTK::Vec3 force;
+        //     double time;
+        // };
+
         struct ForceInput {
             SimTK::Vec3 force;
             double time;
         };
-
+        
         ForceInput get_latest_force(void); //THREADSAFE
 
         bool set_latest_force_time(SimTK::Vec3 forceIn, double tim); //THREADSAFE
