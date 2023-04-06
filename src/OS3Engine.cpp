@@ -178,6 +178,20 @@ bool OS3Engine::generateIDModel(void) {
     // IDmanager->setIntegratorMethod(OpenSim::Manager::IntegratorMethod::RungeKuttaFeldberg);
     IDmanager->setIntegratorAccuracy(timestep*1e-3); //TODO: Change this to match whatever I choose for FD (not too important as we don't integrate ID)
 
+
+    // // Get the pelvis body by its name
+    // OpenSim::Body& pelvis = IDModel.updBodySet().get("r_ulna_radius_hand");
+
+    // // Set the position of the pelvis origin to (0.1, 0.2, 0.3)
+    // SimTK::Vec3 position(0.1, 0.2, 0.3);
+    // pelvis.set(state, position);
+
+    // Marker& marker = IDModel.updMarkerSet().get("r_radius_styloid");
+    // SimTK::Vec3 location(0.1, 0.2, 0.3);
+    // marker.setLocation(location);
+
+
+    // IDelbowJoint.getCoordinate().setValue(state, position);
     //lock joints - Only if we're performing ID first, not necessary for the direct FD method
     IDelbowJoint.getCoordinate().setValue(si,convertDegreesToRadians(90));
     std::cout << IDshoulderJoint.get_coordinates(0).getName() << "<--name of shoulder coord 0. Let's set it to pi radians\n";
