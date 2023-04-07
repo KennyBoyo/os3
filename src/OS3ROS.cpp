@@ -352,12 +352,11 @@ void forceSubscriberCallback(std::shared_ptr<WsClient::Connection> /*connection*
         std::cout << std::endl << "msg received:   " << buffer.GetString() << std::endl << std::endl;
     #endif
 
-    
     assert(forceD.IsObject());    // Document is a JSON value represents the root of DOM. Root can be either an object or array.
 
     
 
-    assert(forceD.HasMember("msg"));
+    // assert(forceD.HasMember("msg"));
     #ifdef TWIST_TEST
     assert(forceD["msg"].HasMember("linear"));
     
@@ -372,39 +371,48 @@ void forceSubscriberCallback(std::shared_ptr<WsClient::Connection> /*connection*
 
     #endif
 
-    assert(forceD["msg"].HasMember("wrench"));
-    assert(forceD["msg"]["wrench"].HasMember("force"));
-    assert(forceD["msg"]["wrench"]["force"].HasMember("x"));
-    assert(forceD["msg"]["wrench"]["force"].HasMember("y"));
-    assert(forceD["msg"]["wrench"]["force"].HasMember("z"));
-    assert(forceD["msg"]["wrench"]["force"]["x"].IsDouble());
-    assert(forceD["msg"]["wrench"]["force"]["y"].IsDouble());
-    assert(forceD["msg"]["wrench"]["force"]["z"].IsDouble());
+    // assert(forceD["msg"].HasMember("wrench"));
+    // assert(forceD["msg"]["wrench"].HasMember("force"));
+    // assert(forceD["msg"]["wrench"]["force"].HasMember("x"));
+    // assert(forceD["msg"]["wrench"]["force"].HasMember("y"));
+    // assert(forceD["msg"]["wrench"]["force"].HasMember("z"));
+    // assert(forceD["msg"]["wrench"]["force"]["x"].IsDouble());
+    // assert(forceD["msg"]["wrench"]["force"]["y"].IsDouble());
+    // assert(forceD["msg"]["wrench"]["force"]["z"].IsDouble());
 
-    assert(forceD["msg"]["wrench"].HasMember("torque"));
-    assert(forceD["msg"]["wrench"]["torque"].HasMember("x"));
-    assert(forceD["msg"]["wrench"]["torque"].HasMember("y"));
-    assert(forceD["msg"]["wrench"]["torque"].HasMember("z"));
-    assert(forceD["msg"]["wrench"]["torque"]["x"].IsDouble());
-    assert(forceD["msg"]["wrench"]["torque"]["y"].IsDouble());
-    assert(forceD["msg"]["wrench"]["torque"]["z"].IsDouble());
+    // assert(forceD["msg"]["wrench"].HasMember("torque"));
+    // assert(forceD["msg"]["wrench"]["torque"].HasMember("x"));
+    // assert(forceD["msg"]["wrench"]["torque"].HasMember("y"));
+    // assert(forceD["msg"]["wrench"]["torque"].HasMember("z"));
+    // assert(forceD["msg"]["wrench"]["torque"]["x"].IsDouble());
+    // assert(forceD["msg"]["wrench"]["torque"]["y"].IsDouble());
+    // assert(forceD["msg"]["wrench"]["torque"]["z"].IsDouble());
 
-    assert(forceD["msg"].HasMember("header"));
-    assert(forceD["msg"]["header"].HasMember("stamp"));
-    assert(forceD["msg"]["header"]["stamp"].HasMember("secs"));
-    assert(forceD["msg"]["header"]["stamp"].HasMember("nsecs"));
-    assert(forceD["msg"]["header"]["stamp"]["secs"].IsUint());
-    assert(forceD["msg"]["header"]["stamp"]["nsecs"].IsUint());
+    // assert(forceD["msg"].HasMember("header"));
+    // assert(forceD["msg"]["header"].HasMember("stamp"));
+    // assert(forceD["msg"]["header"]["stamp"].HasMember("secs"));
+    // assert(forceD["msg"]["header"]["stamp"].HasMember("nsecs"));
+    // assert(forceD["msg"]["header"]["stamp"]["secs"].IsUint());
+    // assert(forceD["msg"]["header"]["stamp"]["nsecs"].IsUint());
 
-    double x = forceD["msg"]["wrench"]["force"]["x"].GetDouble();
-    double y = forceD["msg"]["wrench"]["force"]["y"].GetDouble();
-    double z = forceD["msg"]["wrench"]["force"]["z"].GetDouble();
+    // double x = forceD["msg"]["wrench"]["force"]["x"].GetDouble();
+    // double y = forceD["msg"]["wrench"]["force"]["y"].GetDouble();
+    // double z = forceD["msg"]["wrench"]["force"]["z"].GetDouble();
+
+    const rapidjson::Value& wrench = forceD["msg"]["O_F_ext_hat_K"];
+    std::vector <std::double_t> wrench_list;
+
+    for (rapidjson::Value::ConstValueIterator itr = wrench.Begin(); itr != wrench.End(); ++itr) {
+        const rapidjson::Value& attribute = *itr;
+
+        wrench_list.push_back(attribute.GetDouble());
+    }
 
     // double timestamp = forceD["msg"]["header"]["stamp"]["secs"].GetUint() + (double) forceD["msg"]["header"]["stamp"]["secs"].GetUint()/pow(10, 9);
     // double timestamp = forceD["msg"]["stamp"]["time"].GetDouble();
     double timestamp = -1.0;
 
-        forceBuffer[forceBufferIndex] = {x,y,z};
+        forceBuffer[forceBufferIndex] = {wrench_list[0],wrench_list[1],wrench_list[2]};
         forceBufferIndex++;
         forceBufferIndex = forceBufferIndex % 10; //cycle through each value in array 
 
@@ -430,7 +438,7 @@ void forceSubscriberCallback(std::shared_ptr<WsClient::Connection> /*connection*
         }
         fInMutex.unlock(); // unlocks mutex
     }
-    std::cout << " fReceived x: " << x << " y: " << y << " z: " << z << "time: " << timestamp << std::endl;
+    std::cout << " fReceived x: " << wrench_list[0] << " y: " << wrench_list[1] << " z: " << wrench_list[2] << "time: " << timestamp << std::endl;
     
 
     // auto callOut = std::chrono::steady_clock::now();
@@ -480,7 +488,8 @@ void forceSubscriberThread(RosbridgeWsClient& client, const std::future<void>& f
     client.addClient("topic_subscriber"); //TODO: put this in its own thread
     // RBcppClient.subscribe("topic_subscriber", "cartesian_impedance_controller_NR/force_output",forceSubscriberCallback);
     // client.subscribe("topic_subscriber", "/ROSforceOutput",forceSubscriberCallback);
-    client.subscribe("topic_subscriber", "/franka_state_controller/F_ext",forceSubscriberCallback);
+    // client.subscribe("topic_subscriber", "/franka_state_controller/F_ext",forceSubscriberCallback);
+    client.subscribe("topic_subscriber", "/franka_state_controller/franka_states",forceSubscriberCallback);
 
 
     while(futureObj.wait_for(std::chrono::microseconds(500*10000)) == std::future_status::timeout) {
