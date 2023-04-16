@@ -83,6 +83,10 @@ bool OS3Engine::generateIDModel(void) {
     //setup everything
     Vec3 grav = IDModel.get_gravity()*0; //end effector force is the net force (so includes gravity)
     IDModel.set_gravity(grav); //redundant unless we change grav above
+    std::cout << "MARKERS!" << std::endl;
+    std::cout << IDModel.getBodySet() << std::endl;
+    std::cout << IDModel.getJointSet() << std::endl;
+    std::cout << IDModel.getMarkerSet() << std::endl;
 
     //get joints
     const OpenSim::JointSet& IDjointset = IDModel.get_JointSet();
@@ -527,6 +531,7 @@ OS3Engine::ID_Output OS3Engine::inverseD(void) {
 
     // std::cout << "residualmob: " << output.residualMobilityForces << " from forcevec: " <<  latestForce << "\n magnitude: " << input.forceMag << " and direction: " << input.forceDirection << std::endl;
     output.valid = true;
+    cout << output.residualMobilityForces << endl;
 
     
     return output;
