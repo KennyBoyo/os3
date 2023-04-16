@@ -26,6 +26,24 @@ class OS3ROS {
             SimTK::Vec3 force;
             double time;
         };
+
+        struct Wrench {
+            SimTK::Vec3 force;
+            SimTK::Vec3 torque;
+        };
+
+        struct JointInfo {
+            // Name of Joint
+            std::string jointName;
+            // Array of angles for Joint in order (if exists): Flexion/Extension, Abduction/Adduction, Internal(Medial)/External(Lateral) Rotation
+            std::vector<double> angles;
+        };
+
+        struct ProblemInput {
+            std::vector<JointInfo> jointInfo;
+            Wrench wrench;
+            double time;
+        };
         
         ForceInput get_latest_force(void); //THREADSAFE
 

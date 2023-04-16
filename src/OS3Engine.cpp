@@ -488,6 +488,23 @@ OS3Engine::ID_Output OS3Engine::inverseD(void) {
     
     OS3Engine::ID_Input input(forceVecToInput(commsClient.get_latest_force())); //need to make this threadsafe eventually
     OS3Engine::ID_Output output;
+
+
+    IDModel.setUseVisualizer(false);
+    SimTK::State& si = IDModel.initSystem();
+    //get joints
+    const OpenSim::JointSet& IDjointset = IDModel.get_JointSet();
+    const OpenSim::Joint& IDshoulderJoint = IDjointset.get("r_shoulder");
+    
+
+    const OpenSim::Joint& IDelbowJoint = IDjointset.get("r_elbow");
+    std::cout << "Before: " << IDelbowJoint.getCoordinate().getValue(si) << std::endl;
+    IDelbowJoint.getCoordinate().setValue(si, IDelbowJoint.getCoordinate().getValue(si) + convertDegreesToRadians(5));
+    std::cout << "After: " << IDelbowJoint.getCoordinate().getValue(si) << std::endl;
+
+    IDModel.setUseVisualizer(true);
+
+
     output.valid = false; //change to true later if data
     output.timestamp = input.timestamp;
 
