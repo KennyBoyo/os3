@@ -27,21 +27,23 @@ class OS3ROS {
             double time;
         };
 
-        struct Wrench {
-            SimTK::Vec3 force;
-            SimTK::Vec3 torque;
-        };
+        // struct Wrench {
+        //     SimTK::Vec3 force;
+        //     SimTK::Vec3 torque;
+        // };
 
-        struct JointInfo {
-            // Name of Joint
-            std::string jointName;
-            // Array of angles for Joint in order (if exists): Flexion/Extension, Abduction/Adduction, Internal(Medial)/External(Lateral) Rotation
-            std::vector<double> angles;
-        };
+        // struct JointInfo {
+        //     // Name of Joint
+        //     std::string jointName;
+        //     // Array of angles for Joint in order (if exists): Flexion/Extension, Abduction/Adduction, Internal(Medial)/External(Lateral) Rotation
+        //     std::vector<double> angles;
+        // };
 
         struct ProblemInput {
-            std::vector<JointInfo> jointInfo;
-            Wrench wrench;
+            std::vector<string> name;
+            std::vector<double> angles;
+            std::vector<double> velocity;
+            std::vector<double> wrench;
             double time;
         };
         

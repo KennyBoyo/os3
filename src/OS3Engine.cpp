@@ -442,42 +442,42 @@ bool OS3Engine::generateFDModel(void) {
 
 void OS3Engine::step(void) {
 
-    clock_t initTime = std::clock();
-    auto startStepClock = std::chrono::steady_clock::now();
+    // clock_t initTime = std::clock();
+    // auto startStepClock = std::chrono::steady_clock::now();
 
     //step id first using OS3Engine::inverseD
     OS3Engine::ID_Output IDout = inverseD();
     
-    if (IDout.valid) {
+    // if (IDout.valid) {
 
-        #ifdef LOGGING          //order is time, mobilityforces, torqueactuator, wristpos, elbowpos
-            // logger << " " << IDout.timestamp <<  "    " << IDout.residualMobilityForces << " ";
-            logger <<  "    " << IDout.residualMobilityForces << " ";
-        #endif
+    //     #ifdef LOGGING          //order is time, mobilityforces, torqueactuator, wristpos, elbowpos
+    //         // logger << " " << IDout.timestamp <<  "    " << IDout.residualMobilityForces << " ";
+    //         logger <<  "    " << IDout.residualMobilityForces << " ";
+    //     #endif
 
         
-        //get output torques in a form that is usable to the FD engine
+    //     //get output torques in a form that is usable to the FD engine
 
-        //step fd using OS3Engine::forwardD
-        OS3Engine::FD_Output FDout = forwardD(IDout);
+    //     //step fd using OS3Engine::forwardD
+    //     OS3Engine::FD_Output FDout = forwardD(IDout);
         
-        //publish using comms::publisher
-        commsClient.setPositionToPublish(FDoutputToOS3Data(FDout));
+    //     //publish using comms::publisher
+    //     commsClient.setPositionToPublish(FDoutputToOS3Data(FDout));
         
 
-        #ifdef LOGGING
-            // logger << FDout.timestamp << "   " ;//<< FDout.wristPos << std::endl;
-            logger << " " << FDout.wristPos << " " << FDout.elbowPos << std::endl;
-        #endif
+    //     #ifdef LOGGING
+    //         // logger << FDout.timestamp << "   " ;//<< FDout.wristPos << std::endl;
+    //         logger << " " << FDout.wristPos << " " << FDout.elbowPos << std::endl;
+    //     #endif
         
         prevSimTime = IDout.timestamp; //shouldn't be necessary with control input //TODO this
 
-        auto finishStepClock = std::chrono::steady_clock::now();
-        std::chrono::duration<double> stepDuration = std::chrono::duration_cast<std::chrono::duration<double>>(finishStepClock - startStepClock);
-        // std::cerr << " in " << ((double)(std::clock() - initTime) / CLOCKS_PER_SEC) << "clocl secs ";
-        std::cout << " or " << stepDuration.count() << std::endl;
+    //     auto finishStepClock = std::chrono::steady_clock::now();
+    //     std::chrono::duration<double> stepDuration = std::chrono::duration_cast<std::chrono::duration<double>>(finishStepClock - startStepClock);
+    //     // std::cerr << " in " << ((double)(std::clock() - initTime) / CLOCKS_PER_SEC) << "clocl secs ";
+    //     std::cout << " or " << stepDuration.count() << std::endl;
 
-    }
+    // }
     // double stepTime = ((double) (std::clock() - initTime))/CLOCKS_PER_SEC;
     // std::cout << "STEPPED IN " << stepTime << " seconds! that's " << (std::clock() - initTime) << " clocks \n";
 }
@@ -490,19 +490,23 @@ OS3Engine::ID_Output OS3Engine::inverseD(void) {
     OS3Engine::ID_Output output;
 
 
-    IDModel.setUseVisualizer(false);
-    SimTK::State& si = IDModel.initSystem();
-    //get joints
-    const OpenSim::JointSet& IDjointset = IDModel.get_JointSet();
-    const OpenSim::Joint& IDshoulderJoint = IDjointset.get("r_shoulder");
+    // IDModel.setUseVisualizer(false);
+    // SimTK::State& si = IDModel.initSystem();
+    // //get joints
+    // const OpenSim::JointSet& IDjointset = IDModel.get_JointSet();
+    // const OpenSim::Joint& IDshoulderJoint = IDjointset.get("r_shoulder");
     
 
-    const OpenSim::Joint& IDelbowJoint = IDjointset.get("r_elbow");
-    std::cout << "Before: " << IDelbowJoint.getCoordinate().getValue(si) << std::endl;
-    IDelbowJoint.getCoordinate().setValue(si, IDelbowJoint.getCoordinate().getValue(si) + convertDegreesToRadians(5));
-    std::cout << "After: " << IDelbowJoint.getCoordinate().getValue(si) << std::endl;
+    // const OpenSim::Joint& IDelbowJoint = IDjointset.get("r_elbow");
+    // std::cout << "Before: " << IDelbowJoint.getCoordinate().getValue(si) << std::endl;
+    // IDelbowJoint.getCoordinate().setValue(si, IDelbowJoint.getCoordinate().getValue(si) + convertDegreesToRadians(5));
+    // std::cout << "After: " << IDelbowJoint.getCoordinate().getValue(si) << std::endl;
 
-    IDModel.setUseVisualizer(true);
+    // IDModel.getMultibodySystem().realize(si, Stage::Position);
+
+    // IDModel.setUseVisualizer(true);
+    // si = IDModel.initSystem();
+    // IDModel.getVisualizer().show(si);
 
 
     output.valid = false; //change to true later if data
@@ -516,11 +520,39 @@ OS3Engine::ID_Output OS3Engine::inverseD(void) {
     #ifdef LOGGING
         logger << "  " << input.timestamp << "  " << input.forceMag << " " << input.forceDirection << " ";
     #endif
-    
+
     SimTK::Integrator* integrator_ = &IDmanager->getIntegrator();
 
     SimTK::State state_ = integrator_->getAdvancedState();
+
+    const OpenSim::JointSet& IDjointset = IDModel.get_JointSet();
+    const OpenSim::Joint& IDshoulderJoint = IDjointset.get("r_shoulder");
+    
+
+    const OpenSim::Joint& IDelbowJoint = IDjointset.get("r_elbow");
+
+    IDelbowJoint.getCoordinate().setLocked(state_, false);
+    IDelbowJoint.getCoordinate().getLocked(state_);
+    std::cout << "Before: " << IDelbowJoint.getCoordinate().getValue(state_) << std::endl;
+    IDelbowJoint.getCoordinate().setValue(state_, IDelbowJoint.getCoordinate().getValue(state_) + convertDegreesToRadians(5));
+    std::cout << "After: " << IDelbowJoint.getCoordinate().getValue(state_) << std::endl;
+
+    IDelbowJoint.getCoordinate().setLocked(state_, true);
+    
+    IDmanager = new OpenSim::Manager(IDModel);
+    IDmanager->initialize(state_);
+
+    // Before: 25.5691
+    // After: 25.6563
+    // ~[2.39636 0.201409 0.889342]
+    // or 0.0331805
+    
+    integrator_ = &IDmanager->getIntegrator();
+
+    state_ = integrator_->getAdvancedState();
+
     IDModel.getMultibodySystem().realize(state_, Stage::Dynamics); //just for adding in controls (will do this again)
+    IDModel.getVisualizer().show(state_);
 
     Vector controls(1);
     controls(0) = input.forceMag / endEffector.get_optimal_force();
@@ -549,6 +581,7 @@ OS3Engine::ID_Output OS3Engine::inverseD(void) {
     // std::cout << "residualmob: " << output.residualMobilityForces << " from forcevec: " <<  latestForce << "\n magnitude: " << input.forceMag << " and direction: " << input.forceDirection << std::endl;
     output.valid = true;
     cout << output.residualMobilityForces << endl;
+
 
     
     return output;

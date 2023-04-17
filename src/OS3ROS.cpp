@@ -21,6 +21,8 @@ static void positionPublisherThread(RosbridgeWsClient& client, const std::future
 static void createSubscriberThread(RosbridgeWsClient& client, const std::future<void>& futureObj, const std::string& clientName, const std::string& topicName, const InMessage& callback);
 // static void forceSubscriberThread(RosbridgeWsClient& client, const std::future<void>& futureObj, const std::string& clientName, const std::string& topicName);
 
+void unwrap_json_double_array(const rapidjson::Value& docArray, std::vector<double> arrayList);
+
 bool publishState(OS3ROS::OS3Data stateData);
 
 //public within namespace
@@ -401,12 +403,19 @@ void forceSubscriberCallback(std::shared_ptr<WsClient::Connection> /*connection*
     const rapidjson::Value& wrench = forceD["msg"]["O_F_ext_hat_K"];
     std::vector <std::double_t> wrench_list;
 
+
+    unwrap_json_double_array(wrench, wrench_list);
+
     for (rapidjson::Value::ConstValueIterator itr = wrench.Begin(); itr != wrench.End(); ++itr) {
         const rapidjson::Value& attribute = *itr;
 
         wrench_list.push_back(attribute.GetDouble());
     }
 
+
+    for (auto w : wrench_list) {
+        std::cout << w << std::endl;
+    }
     // double timestamp = forceD["msg"]["header"]["stamp"]["secs"].GetUint() + (double) forceD["msg"]["header"]["stamp"]["secs"].GetUint()/pow(10, 9);
     // double timestamp = forceD["msg"]["stamp"]["time"].GetDouble();
     double timestamp = -1.0;
@@ -521,21 +530,23 @@ void problemSubscriberCallback(std::shared_ptr<WsClient::Connection>, std::share
     #endif
     
   
-    rapidjson::Document forceD;
+    rapidjson::Document problemDoc;
 
-    if (forceD.Parse(in_message->string().c_str()).HasParseError() ) {
+    if (problemDoc.Parse(in_message->string().c_str()).HasParseError() ) {
         std::cerr << "\n\nparse error\n" << std::endl;
     };
 
-    #ifdef DEBUG
-        rapidjson::StringBuffer buffer;
-        buffer.Clear();
-        rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
-        forceD.Accept(writer);
-        std::cout << std::endl << "msg received:   " << buffer.GetString() << std::endl << std::endl;
-    #endif
+    assert(problemDoc.IsObject());    // Document is a JSON value represents the root of DOM. Root can be either an object or array.
 
-    assert(forceD.IsObject());    // Document is a JSON value represents the root of DOM. Root can be either an object or array.
+    // Arm joint names
+    assert(problemDoc["msg"].HasMember("name"));
+
+    // Arm joint position
+    assert(problemDoc["msg"].HasMember("position"));
+    // Arm joint velocity (will be empty as of implementation)
+    assert(problemDoc["msg"].HasMember("velocity"));
+    // End effector wrench
+    assert(problemDoc["msg"].HasMember("effort"));
 
     // assert(forceD["msg"].HasMember("wrench"));
     // assert(forceD["msg"]["wrench"].HasMember("force"));
@@ -567,6 +578,8 @@ void problemSubscriberCallback(std::shared_ptr<WsClient::Connection>, std::share
 
     const rapidjson::Value& wrench = forceD["msg"]["O_F_ext_hat_K"];
     std::vector <std::double_t> wrench_list;
+
+    unwrap_json_double_array(wrench, wrench_list);
 
     for (rapidjson::Value::ConstValueIterator itr = wrench.Begin(); itr != wrench.End(); ++itr) {
         const rapidjson::Value& attribute = *itr;
@@ -610,4 +623,13 @@ void problemSubscriberCallback(std::shared_ptr<WsClient::Connection>, std::share
     // auto callOut = std::chrono::steady_clock::now();
     // std::chrono::duration<double> callDur = std::chrono::duration_cast<std::chrono::duration<double>>(callOut - callIn);
     // std::cout << " calltime: " << callDur.count() << " ";
+}
+template <typename T>
+
+void unwrap_json_double_array(const rapidjson::Value& docArray, std::vector<double> arrayList) {
+    for (rapidjson::Value::ConstValueIterator itr = docArray.Begin(); itr != docArray.End(); ++itr) {
+        const rapidjson::Value& attribute = *itr;
+
+        arrayList.push_back(attribute.GetDouble());
+    }
 }
