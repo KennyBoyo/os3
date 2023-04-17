@@ -72,7 +72,8 @@
         "variant": "cpp",
         "*.ipp": "cpp",
         "core": "cpp",
-        "*.txx": "cpp"
+        "*.txx": "cpp",
+        "filesystem": "cpp"
     },
     "cmake.configureOnOpen": true
 }

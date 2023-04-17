@@ -6,630 +6,191 @@
 using namespace SimTK;
 using namespace OpenSim;
 using namespace std;
-using namespace OS3;
-
 
 #define LOGGING 
 
-/*converts clock ticks into seconds */
-double _clock_secs(clock_t ctim) ;
+namespace OS3ROS {
 
-//callbacks (will need more)
-static void advertiserCallback(std::shared_ptr<WsClient::Connection> /*connection*/, std::shared_ptr<WsClient::InMessage> in_message);
-static void forceSubscriberCallback(std::shared_ptr<WsClient::Connection> /*connection*/, std::shared_ptr<WsClient::InMessage> in_message);
-static void positionPublisherThread(RosbridgeWsClient& client, const std::future<void>& futureObj);
-static void createSubscriberThread(RosbridgeWsClient& client, const std::future<void>& futureObj, const std::string& clientName, const std::string& topicName, const InMessage& callback);
-// static void forceSubscriberThread(RosbridgeWsClient& client, const std::future<void>& futureObj, const std::string& clientName, const std::string& topicName);
+    //callbacks
+    void problemSubscriberCallback(std::shared_ptr<WsClient::Connection> /*connection*/, std::shared_ptr<WsClient::InMessage> in_message);
+    // void createSubscriberThread(RosbridgeWsClient& client, const std::future<void>& futureObj, const std::string& clientName, const std::string& topicName, const InMessage& callback);
+    void createSubscriberThread(RosbridgeWsClient& client, const std::future<void>& futureObj, const std::string& clientName, const std::string& topicName);
 
-void unwrap_json_double_array(const rapidjson::Value& docArray, std::vector<double> arrayList);
+    namespace {
+        std::promise<void> problemSubExitSignal;
+        std::thread* problemSubThread;
+        std::future<void> problemSubFutureObj;
 
-bool publishState(OS3ROS::OS3Data stateData);
+        //public within namespace
+        RosbridgeWsClient RBcppClient("localhost:9090");
 
-//public within namespace
-RosbridgeWsClient RBcppClient("localhost:9090");
+        // Force Message Storage
+        std::mutex problemMutex;
+        static OS3ROS::ProblemInput latestProblem;
 
-// Force Message Storage
-std::mutex fInMutex;
-static SimTK::Vec3 latestForce;
-static double latestTime;
+        // Utilities
+        
+        void unwrap_json_double_array(const rapidjson::Value& docArray, std::vector<double>& arrayList) {
+            for (rapidjson::Value::ConstValueIterator itr = docArray.Begin(); itr != docArray.End(); ++itr) {
+                const rapidjson::Value& attribute = *itr;
 
-static SimTK::Vec3 forceBuffer[10];
-static int forceBufferIndex;
+                arrayList.push_back(attribute.GetDouble());
+            }
+        }
+        /*converts clock ticks into seconds */
+        double _clock_secs(clock_t ctim) ;
+    }
 
-// Position Publisher Globals
-std::mutex posOutMutex;
-static OS3ROS::OS3Data latestPositionData; // should be accessed only through posOutMutex!!
-static bool _newPosAvailable; //represents whether the data in latestPositionData has been published yet (use only with posOutMutex!)
 
-/* This and other rosbridgecpp functions are created based on the rosbridgecpp library and example code
-    See licences for details
+    void init(void) {
+        problemSubFutureObj = problemSubExitSignal.get_future();
+
+        const std::string problemSubscriberThreadName = "problem_subscriber";
+        const std::string problemSubscriberThreadTopic = "/problem_topic";
+
+        std::thread problemSubThread(&createSubscriberThread, std::ref(RBcppClient), std::cref(problemSubFutureObj), std::cref(problemSubscriberThreadName), std::cref(problemSubscriberThreadTopic));
+
+        // std::this_thread::sleep_for(std::chrono::seconds(5));
+        std::cout << " ...threads/clients created\n";
+        
+        return;
+    }
+
+    /* Threadsafe method to get the latest force that we've received from our subscriber thread
     */
-void OS3ROS::init(void) {
-
-    std::cout << "OS3 comms init..." ;
-    
-    
-    if (fInMutex.try_lock()) {
-        latestForce = {0,0,0};
-        latestTime = 0.0;
-        fInMutex.unlock();
+    ProblemInput get_latest_problem(void) {
+        return latestProblem;
     }
 
-    for (int i = 0; i < 10; i++) {
-        forceBuffer[i].setToZero();
-    }    
-    forceBufferIndex = 0;
+    /*
+    Threadsafe method to set the latest force (alternative to callback fn)
+    */
+    bool set_latest_problem(ProblemInput problem) {
 
-    RBcppClient.addClient("service_advertiser");
-    RBcppClient.advertiseService("service_advertiser", "/OS3service", "std_srvs/SetBool", advertiserCallback);
-    
-    RBcppClient.addClient("topic_advertiser");
-    RBcppClient.advertise("topic_advertiser", "/OS3topic", "franka_panda_controller_swc/ArmJointPos");
-
-    const std::string forceSubscriberThreadName = "topic_subscriber";
-    const std::string forceSubscriberThreadTopic = "/franka_state_controller/franka_states";
-
-    subFutureObj = subExitSignal.get_future();
-    subTh = new std::thread(&createSubscriberThread, std::ref(RBcppClient), std::cref(subFutureObj), std::cref(forceSubscriberThreadName), std::cref(forceSubscriberThreadTopic), std::cref(forceSubscriberCallback));
-    
-
-    // const std::string problemSubscriberThreadName = "problem_subscriber";
-    // const std::string problemSubscriberThreadTopic = "/problem_topic";
-
-    // std::thread problemThread(&createSubscriberThread, std::ref(RBcppClient), std::cref(subFutureObj), std::cref(problemSubscriberThreadName), std::cref(problemSubscriberThreadTopic), std::cref(forceSubscriberCallback));
-    // Fetch std::future object associated with promise
-    futureObj = pubExitSignal.get_future();
-
-    pubTh = new std::thread(&positionPublisherThread, std::ref(RBcppClient), std::cref(futureObj));
-    std::this_thread::sleep_for(std::chrono::seconds(5));
-    std::cout << " ...threads/clients created\n";
-    
-    
-    
-    return;
-}
-
-/* Threadsafe method to get the latest force that we've received from our subscriber thread
-*/
-OS3ROS::ForceInput OS3ROS::get_latest_force(void) {
-    if (fInMutex.try_lock()) {
-        _latestInput.force = latestForce;
-        _latestInput.time = latestTime;
-        fInMutex.unlock();
-    }
-    //threadsafe
-    return _latestInput;
-}
-
-/*
-Threadsafe method to set the latest force (alternative to callback fn)
-*/
-bool OS3ROS::set_latest_force_time(SimTK::Vec3 forceIn, double tim) {
-
-    if (fInMutex.try_lock()) {
-        latestForce = forceIn;
-        latestTime = tim;
-        fInMutex.unlock();
-        return true;
-    }
-    return false;
-}
-
-//threadsafe function to add the latest force to publishing queue
-bool OS3ROS::setPositionToPublish(OS3Data stateData) {
-
-    if (posOutMutex.try_lock()) {
-        latestPositionData = stateData;
-        
-        _newPosAvailable = true; //mark that there's a new position available
-                        //NOTE: if the publisher hasn't published
-                                // the previous data point
-                                // then it will be overwritten
-        
-        posOutMutex.unlock();
-        return true; //position recorded
-    }
-    return false; // position not recorded (mutex was already locked)
-}
-
-bool publishState(OS3ROS::OS3Data stateData) {
-
-    if (stateData.valid == false) {
-
-        std::cout << "INVALID DATA\n";
+        if (problemMutex.try_lock()) {
+            latestProblem = problem;
+            problemMutex.unlock();
+            return true;
+        }
         return false;
     }
 
-    rapidjson::Document d;
-    d.SetObject();
+    void createSubscriberThread(RosbridgeWsClient& client, const std::future<void>& futureObj, const std::string& clientName, const std::string& topicName, const InMessage& callback) {
 
-    rapidjson::Value msg(rapidjson::kObjectType);
+        std::cout << "Subscribing to " << topicName << endl;
 
+        client.addClient(clientName);
+        std::cout << "Added Client " << topicName << endl;
+        client.subscribe(clientName, topicName, callback);
+        std::cout << "Subscribed to " << topicName << endl;
 
-    //create wrist values
-    rapidjson::Value wristVec(rapidjson::kObjectType);
-    rapidjson::Value wX;
-    rapidjson::Value wY;
-    rapidjson::Value wZ;
-    wX.SetDouble(stateData.wristPos[0]);
-    wY.SetDouble(stateData.wristPos[1]);
-    wZ.SetDouble(stateData.wristPos[2]);
-    wristVec.AddMember("x",wX,d.GetAllocator());
-    wristVec.AddMember("y",wY,d.GetAllocator());
-    wristVec.AddMember("z",wZ,d.GetAllocator());
-
-    //create elbow values
-    rapidjson::Value elbowVec(rapidjson::kObjectType);
-    rapidjson::Value eX;
-    rapidjson::Value eY;
-    rapidjson::Value eZ;
-    eX.SetDouble(stateData.elbowPos[0]);
-    eY.SetDouble(stateData.elbowPos[1]);
-    eZ.SetDouble(stateData.elbowPos[2]);
-    elbowVec.AddMember("x",eX,d.GetAllocator());
-    elbowVec.AddMember("y",eY,d.GetAllocator());
-    elbowVec.AddMember("z",eZ,d.GetAllocator());
-
-    //create time values
-    rapidjson::Value timestamp;
-    timestamp.SetDouble(stateData.timestamp);
-
-    //add values to d
-    d.AddMember("wrist",wristVec,d.GetAllocator());
-    d.AddMember("elbow",elbowVec,d.GetAllocator());
-    d.AddMember("time",timestamp,d.GetAllocator());
-    
-    // std::cout << d["wrist"]["x"].GetDouble() << "<--wrist pos\n";
-    // std::cout << "    published stuff to /OS3topic   ";
-    RBcppClient.publish("/OS3topic",d);    //TODO Currently the rosbridgecpp library 
-                    //opens and closes a new connection each time a message is sent. 
-                    //This is computationally expensive and so the library should be modified accordingly
-
-
-    return true; //when should we return false? //TODO
-}
-
-// to test (from CMD line):
-// rostopic pub -r 10 /twistfromCMD geometry_msgs/Twist  "{linear:  {x: 0.1, y: 0.0, z: 0.0}, angular: {x: 0.0,y: 0.0, z: 0.0}}"
-// roslaunch rosbridge_server rosbridge_websocket.launch
-
-//deletes threads when program exits
-OS3ROS::~OS3ROS() {
-    pubExitSignal.set_value();
-    pubTh->join();
-    std::cerr << "EXITING OS3ROS\n";
-
-}
-
-
-//private definitions
-void advertiserCallback(std::shared_ptr<WsClient::Connection> /*connection*/, std::shared_ptr<WsClient::InMessage> in_message)
-{
-    // message->string() is destructive, so we have to buffer it first
-    std::string messagebuf = in_message->string();
-    std::cout << "advertiseServiceCallback(): Message Received: " << messagebuf << std::endl;
-
-    rapidjson::Document document;
-    if (document.Parse(messagebuf.c_str()).HasParseError())
-    {
-    std::cerr << "advertiseServiceCallback(): Error in parsing service request message: " << messagebuf << std::endl;
-    return;
-    }
-
-    rapidjson::Document values(rapidjson::kObjectType);
-    rapidjson::Document::AllocatorType& allocator = values.GetAllocator();
-    values.AddMember("success", document["args"]["data"].GetBool(), allocator);
-    values.AddMember("message", "from advertiseServiceCallback", allocator);
-
-    // RBcppClientptr->addClient("testclient");
-    RBcppClient.serviceResponse(document["service"].GetString(), document["id"].GetString(), true, values);
-
-
-}
-
-
-// void forceSubscriberCallback(std::shared_ptr<WsClient::Connection> /*connection*/, std::shared_ptr<WsClient::InMessage> in_message)
-// {  
-
-//     // auto callIn =  std::chrono::steady_clock::now();
-//     #undef DEBUG
-//     #ifdef DEBUG
-//     std::cout << "subscriberCallback(): Message Received: " << in_message->string() << std::endl; //THIS DESTROYS THE BUFFER AND SO CAN ONLY BE CALLED ONCE
-//     #endif 
-//     // #define DEBUG
-    
-  
-//     rapidjson::Document forceD;
-
-//     // char *cstr = new char[in_message->string().length() + 1];
-//     // strcpy(cstr, in_message->string().c_str());
-//     // std::cout << "msg length : " << in_message->string().length() << std::endl;
-//     // std::cout << "actual string received : " << cstr << std::endl;
-//     // std::cerr << "parse error: " << forceD.Parse(in_message->string().c_str()).GetParseError() << std::endl; while(1) {}
-//     if (forceD.Parse(in_message->string().c_str()).HasParseError() ) {
-//         std::cerr << "\n\nparse error\n" << std::endl;
-//     };
-
-//     #ifdef DEBUG
-//         rapidjson::StringBuffer buffer;
-//         buffer.Clear();
-//         rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
-//         forceD.Accept(writer);
-//         std::cout << std::endl << "msg received:   " << buffer.GetString() << std::endl << std::endl;
-//     #endif
-
-    
-//     assert(forceD.IsObject());    // Document is a JSON value represents the root of DOM. Root can be either an object or array.
-
-    
-
-//     assert(forceD.HasMember("msg"));
-//     #ifdef TWIST_TEST
-//     assert(forceD["msg"].HasMember("linear"));
-    
-//     assert(forceD["msg"]["linear"].HasMember("x"));
-//     assert(forceD["msg"]["linear"]["x"].IsDouble());
-
-//     // std::cout << forceD["msg"]["linear"]["x"].GetDouble() << std::endl;
-
-//     double x = forceD["msg"]["linear"]["x"].GetDouble();
-//     double y = forceD["msg"]["linear"]["y"].GetDouble();
-//     double z = forceD["msg"]["linear"]["z"].GetDouble();
-
-//     #endif
-
-//     assert(forceD["msg"].HasMember("force"));
-//     assert(forceD["msg"]["force"].HasMember("x"));
-//     assert(forceD["msg"].HasMember("time"));
-//     assert(forceD["msg"]["force"]["x"].IsDouble());
-//     assert(forceD["msg"]["time"].IsDouble());
-
-//     double x = forceD["msg"]["force"]["x"].GetDouble();
-//     double y = forceD["msg"]["force"]["y"].GetDouble();
-//     double z = forceD["msg"]["force"]["z"].GetDouble();
-//     double timestamp = forceD["msg"]["time"].GetDouble();
-
-//         forceBuffer[forceBufferIndex] = {x,y,z};
-//         forceBufferIndex++;
-//         forceBufferIndex = forceBufferIndex % 10; //cycle through each value in array 
-
-//         SimTK::Vec3 fSum = {0,0,0};
-
-//         for (int i = 0; i < 10; i++) {
-//             fSum = fSum + forceBuffer[i];
-//         }
-//         fSum = fSum / 10;
-
-//     {
-//         fInMutex.lock(); //locks mutex
-        
-        
-
-//         //save to global variable
-//         // latestForce = {x,y,z};
-//         latestForce = fSum;
-//         if (timestamp < 0) { //DEBUG CODE, USED TO SEND REPEATED INPUT WITHOUT FRANKA
-//             latestTime += 0.002;
-//         } else {
-//             latestTime = timestamp;
-//         }
-//         fInMutex.unlock(); // unlocks mutex
-//     }
-//     std::cout << " fReceived x: " << x << " y: " << y << " z: " << z << "time: " << timestamp << std::endl;
-    
-
-//     // auto callOut = std::chrono::steady_clock::now();
-//     // std::chrono::duration<double> callDur = std::chrono::duration_cast<std::chrono::duration<double>>(callOut - callIn);
-//     // std::cout << " calltime: " << callDur.count() << " ";
-// }
-
-void forceSubscriberCallback(std::shared_ptr<WsClient::Connection> /*connection*/, std::shared_ptr<WsClient::InMessage> in_message)
-{  
-
-    // auto callIn =  std::chrono::steady_clock::now();
-    #undef DEBUG
-    #ifdef DEBUG
-    std::cout << "subscriberCallback(): Message Received: " << in_message->string() << std::endl; //THIS DESTROYS THE BUFFER AND SO CAN ONLY BE CALLED ONCE
-    #endif 
-    // #define DEBUG
-    
-  
-    rapidjson::Document forceD;
-
-    // char *cstr = new char[in_message->string().length() + 1];
-    // strcpy(cstr, in_message->string().c_str());
-    // std::cout << "msg length : " << in_message->string().length() << std::endl;
-    // std::cout << "actual string received : " << cstr << std::endl;
-    // std::cerr << "parse error: " << forceD.Parse(in_message->string().c_str()).GetParseError() << std::endl; while(1) {}
-    if (forceD.Parse(in_message->string().c_str()).HasParseError() ) {
-        std::cerr << "\n\nparse error\n" << std::endl;
-    };
-
-    #ifdef DEBUG
-        rapidjson::StringBuffer buffer;
-        buffer.Clear();
-        rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
-        forceD.Accept(writer);
-        std::cout << std::endl << "msg received:   " << buffer.GetString() << std::endl << std::endl;
-    #endif
-
-    assert(forceD.IsObject());    // Document is a JSON value represents the root of DOM. Root can be either an object or array.
-
-    
-
-    // assert(forceD.HasMember("msg"));
-    #ifdef TWIST_TEST
-    assert(forceD["msg"].HasMember("linear"));
-    
-    assert(forceD["msg"]["linear"].HasMember("x"));
-    assert(forceD["msg"]["linear"]["x"].IsDouble());
-
-    // std::cout << forceD["msg"]["linear"]["x"].GetDouble() << std::endl;
-
-    double x = forceD["msg"]["linear"]["x"].GetDouble();
-    double y = forceD["msg"]["linear"]["y"].GetDouble();
-    double z = forceD["msg"]["linear"]["z"].GetDouble();
-
-    #endif
-
-    // assert(forceD["msg"].HasMember("wrench"));
-    // assert(forceD["msg"]["wrench"].HasMember("force"));
-    // assert(forceD["msg"]["wrench"]["force"].HasMember("x"));
-    // assert(forceD["msg"]["wrench"]["force"].HasMember("y"));
-    // assert(forceD["msg"]["wrench"]["force"].HasMember("z"));
-    // assert(forceD["msg"]["wrench"]["force"]["x"].IsDouble());
-    // assert(forceD["msg"]["wrench"]["force"]["y"].IsDouble());
-    // assert(forceD["msg"]["wrench"]["force"]["z"].IsDouble());
-
-    // assert(forceD["msg"]["wrench"].HasMember("torque"));
-    // assert(forceD["msg"]["wrench"]["torque"].HasMember("x"));
-    // assert(forceD["msg"]["wrench"]["torque"].HasMember("y"));
-    // assert(forceD["msg"]["wrench"]["torque"].HasMember("z"));
-    // assert(forceD["msg"]["wrench"]["torque"]["x"].IsDouble());
-    // assert(forceD["msg"]["wrench"]["torque"]["y"].IsDouble());
-    // assert(forceD["msg"]["wrench"]["torque"]["z"].IsDouble());
-
-    // assert(forceD["msg"].HasMember("header"));
-    // assert(forceD["msg"]["header"].HasMember("stamp"));
-    // assert(forceD["msg"]["header"]["stamp"].HasMember("secs"));
-    // assert(forceD["msg"]["header"]["stamp"].HasMember("nsecs"));
-    // assert(forceD["msg"]["header"]["stamp"]["secs"].IsUint());
-    // assert(forceD["msg"]["header"]["stamp"]["nsecs"].IsUint());
-
-    // double x = forceD["msg"]["wrench"]["force"]["x"].GetDouble();
-    // double y = forceD["msg"]["wrench"]["force"]["y"].GetDouble();
-    // double z = forceD["msg"]["wrench"]["force"]["z"].GetDouble();
-
-    const rapidjson::Value& wrench = forceD["msg"]["O_F_ext_hat_K"];
-    std::vector <std::double_t> wrench_list;
-
-
-    unwrap_json_double_array(wrench, wrench_list);
-
-    for (rapidjson::Value::ConstValueIterator itr = wrench.Begin(); itr != wrench.End(); ++itr) {
-        const rapidjson::Value& attribute = *itr;
-
-        wrench_list.push_back(attribute.GetDouble());
-    }
-
-
-    for (auto w : wrench_list) {
-        std::cout << w << std::endl;
-    }
-    // double timestamp = forceD["msg"]["header"]["stamp"]["secs"].GetUint() + (double) forceD["msg"]["header"]["stamp"]["secs"].GetUint()/pow(10, 9);
-    // double timestamp = forceD["msg"]["stamp"]["time"].GetDouble();
-    double timestamp = -1.0;
-
-        forceBuffer[forceBufferIndex] = {wrench_list[0],wrench_list[1],wrench_list[2]};
-        forceBufferIndex++;
-        forceBufferIndex = forceBufferIndex % 10; //cycle through each value in array 
-
-        SimTK::Vec3 fSum = {0,0,0};
-
-        for (int i = 0; i < 10; i++) {
-            fSum = fSum + forceBuffer[i];
+        while(futureObj.wait_for(std::chrono::microseconds(500*10000)) == std::future_status::timeout) {
+            //do nothing (subcription is handled by interrupts)
+            std::cout << "Subscribed to " << topicName << endl;
         }
-        fSum = fSum / 10;
 
-    {
-        fInMutex.lock(); //locks mutex
-        
-        
+    }
 
-        //save to global variable
-        // latestForce = {x,y,z};
-        latestForce = fSum;
-        if (timestamp < 0) { //DEBUG CODE, USED TO SEND REPEATED INPUT WITHOUT FRANKA
-            latestTime += 0.002;
+    void createSubscriberThread(RosbridgeWsClient& client, const std::future<void>& futureObj, const std::string& clientName, const std::string& topicName) {
+
+        std::cout << "Subscribing to " << topicName << endl;
+
+        client.addClient(clientName);
+        client.subscribe(clientName, topicName, problemSubscriberCallback);
+        std::cout << "Subscribed to " << topicName << endl;
+
+        while(futureObj.wait_for(std::chrono::microseconds(500*10000)) == std::future_status::timeout) {
+            //do nothing (subcription is handled by interrupts)
+            std::cout << "Subscribed to " << topicName << endl;
+        }
+
+    }
+
+
+    void problemSubscriberCallback(std::shared_ptr<WsClient::Connection>, std::shared_ptr<WsClient::InMessage> in_message)
+    {  
+
+        auto callIn =  std::chrono::steady_clock::now();
+        
+        #undef DEBUG
+        #ifdef DEBUG
+        std::cout << "subscriberCallback(): Message Received: " << in_message->string() << std::endl; //THIS DESTROYS THE BUFFER AND SO CAN ONLY BE CALLED ONCE
+        #endif
+        
+        rapidjson::Document problemDoc;
+
+        if (problemDoc.Parse(in_message->string().c_str()).HasParseError() ) {
+            std::cerr << "\n\nparse error\n" << std::endl;
+        };
+
+        assert(problemDoc.IsObject());    // Document is a JSON value represents the root of DOM. Root can be either an object or array
+
+        // Check Header Present
+        assert(problemDoc["msg"].HasMember("header"));
+        assert(problemDoc["msg"]["header"].HasMember("stamp"));
+        assert(problemDoc["msg"]["header"]["stamp"].HasMember("secs"));
+        double timestamp = problemDoc["msg"]["header"]["stamp"]["secs"].GetDouble();
+
+        // Check Arm Joint Names Present
+        assert(problemDoc["msg"].HasMember("name"));
+        const rapidjson::Value& nameDoc = problemDoc["msg"]["name"];
+        std::vector<std::string> nameList;
+        for (rapidjson::Value::ConstValueIterator itr = nameDoc.Begin(); itr != nameDoc.End(); ++itr) {
+            const rapidjson::Value& attribute = *itr;
+            nameList.push_back(attribute.GetString());
+        }
+
+        // Arm joint position
+        assert(problemDoc["msg"].HasMember("position"));
+        const rapidjson::Value& posDoc = problemDoc["msg"]["position"];
+        std::vector <double> posList;
+        OS3ROS::unwrap_json_double_array(posDoc, posList);
+
+        // Arm joint velocity (will be empty as of implementation)
+        assert(problemDoc["msg"].HasMember("velocity"));
+        const rapidjson::Value& velDoc = problemDoc["msg"]["velocity"];
+        std::vector <double> velList;
+        OS3ROS::unwrap_json_double_array(velDoc, velList);
+
+        // End effector wrench
+        assert(problemDoc["msg"].HasMember("effort"));
+        const rapidjson::Value& wrenchDoc = problemDoc["msg"]["effort"];
+        std::vector <double> wrenchList;
+        OS3ROS::unwrap_json_double_array(wrenchDoc, wrenchList);
+
+        OS3ROS::ProblemInput pi;
+        pi.names.insert(pi.names.end(), nameList.begin(), nameList.end());
+        pi.angles.insert(pi.angles.end(), posList.begin(), posList.end());
+        pi.velocities.insert(pi.velocities.end(), velList.begin(), velList.end());
+        pi.wrench.insert(pi.wrench.end(), wrenchList.begin(), wrenchList.end());
+        SimTK::Vec3 force{pi.wrench[0], pi.wrench[1], pi.wrench[2]};
+        SimTK::Vec3 torque{pi.wrench[3], pi.wrench[4], pi.wrench[5]};
+        
+        pi.forceMag = sqrt(~force * force);
+        if (pi.forceMag == 0) {
+            pi.forceDirection = {1,1,1}; //no force anyway
         } else {
-            latestTime = timestamp;
+            pi.forceDirection = force / pi.forceMag;
         }
-        fInMutex.unlock(); // unlocks mutex
-    }
-    std::cout << " fReceived x: " << wrench_list[0] << " y: " << wrench_list[1] << " z: " << wrench_list[2] << "time: " << timestamp << std::endl;
-    
 
-    // auto callOut = std::chrono::steady_clock::now();
-    // std::chrono::duration<double> callDur = std::chrono::duration_cast<std::chrono::duration<double>>(callOut - callIn);
-    // std::cout << " calltime: " << callDur.count() << " ";
-}
-
-void positionPublisherThread(RosbridgeWsClient& client, const std::future<void>& futureObj) {
-
-    std::cout << "pos publisher";
-
-    client.addClient("position_publisher");
-
-    OS3ROS::OS3Data data;
-    bool newData = false;
-    // std::this_thread::sleep_for(std::chrono::seconds(10)); std::cout << "pub thread: ready for data";
-    while(futureObj.wait_for(std::chrono::microseconds(500)) == std::future_status::timeout) {
-        
-        if (posOutMutex.try_lock()) {
-                if (_newPosAvailable) {
-                    data = latestPositionData;
-                    newData = true; //for this thread's reference
-                    _newPosAvailable = false; // we've accessed this data point, so mark it as old
-                }
-            posOutMutex.unlock();
-        }
-        if (newData) {
-            publishState(data);
-            newData = false;            
-            // std::cout << "             PUBTHREAD: pubbed!";
-        }
-        
-    }
-
-    client.removeClient("position_publisher");
-    std::cout << "publisher thread has stopped" << std::endl;
-
-    return;
-}
-
-
-void forceSubscriberThread(RosbridgeWsClient& client, const std::future<void>& futureObj, const std::string& clientName, const std::string& topicName) {
-
-    std::cout << " force subscriber, ";
-
-
-    client.addClient(clientName); //TODO: put this in its own thread
-    // RBcppClient.subscribe("topic_subscriber", "cartesian_impedance_controller_NR/force_output",forceSubscriberCallback);
-    // client.subscribe("topic_subscriber", "/ROSforceOutput",forceSubscriberCallback);
-    // client.subscribe("topic_subscriber", "/franka_state_controller/F_ext",forceSubscriberCallback);
-    client.subscribe(clientName, topicName,forceSubscriberCallback);
-
-
-    while(futureObj.wait_for(std::chrono::microseconds(500*10000)) == std::future_status::timeout) {
-        //do nothing (subcription is handled by interrupts)
-    }
-
-}
-
-void createSubscriberThread(RosbridgeWsClient& client, const std::future<void>& futureObj, const std::string& clientName, const std::string& topicName, const InMessage& callback) {
-
-    std::cout << "Subscribing to " << topicName << endl;
-
-    client.addClient(clientName);
-    client.subscribe(clientName, topicName, callback);
-
-    while(futureObj.wait_for(std::chrono::microseconds(500*10000)) == std::future_status::timeout) {
-        //do nothing (subcription is handled by interrupts)
-    }
-
-}
-
-
-void problemSubscriberCallback(std::shared_ptr<WsClient::Connection>, std::shared_ptr<WsClient::InMessage> in_message)
-{  
-
-    // auto callIn =  std::chrono::steady_clock::now();
-    #undef DEBUG
-    #ifdef DEBUG
-    std::cout << "subscriberCallback(): Message Received: " << in_message->string() << std::endl; //THIS DESTROYS THE BUFFER AND SO CAN ONLY BE CALLED ONCE
-    #endif
-    
-  
-    rapidjson::Document problemDoc;
-
-    if (problemDoc.Parse(in_message->string().c_str()).HasParseError() ) {
-        std::cerr << "\n\nparse error\n" << std::endl;
-    };
-
-    assert(problemDoc.IsObject());    // Document is a JSON value represents the root of DOM. Root can be either an object or array.
-
-    // Arm joint names
-    assert(problemDoc["msg"].HasMember("name"));
-
-    // Arm joint position
-    assert(problemDoc["msg"].HasMember("position"));
-    // Arm joint velocity (will be empty as of implementation)
-    assert(problemDoc["msg"].HasMember("velocity"));
-    // End effector wrench
-    assert(problemDoc["msg"].HasMember("effort"));
-
-    // assert(forceD["msg"].HasMember("wrench"));
-    // assert(forceD["msg"]["wrench"].HasMember("force"));
-    // assert(forceD["msg"]["wrench"]["force"].HasMember("x"));
-    // assert(forceD["msg"]["wrench"]["force"].HasMember("y"));
-    // assert(forceD["msg"]["wrench"]["force"].HasMember("z"));
-    // assert(forceD["msg"]["wrench"]["force"]["x"].IsDouble());
-    // assert(forceD["msg"]["wrench"]["force"]["y"].IsDouble());
-    // assert(forceD["msg"]["wrench"]["force"]["z"].IsDouble());
-
-    // assert(forceD["msg"]["wrench"].HasMember("torque"));
-    // assert(forceD["msg"]["wrench"]["torque"].HasMember("x"));
-    // assert(forceD["msg"]["wrench"]["torque"].HasMember("y"));
-    // assert(forceD["msg"]["wrench"]["torque"].HasMember("z"));
-    // assert(forceD["msg"]["wrench"]["torque"]["x"].IsDouble());
-    // assert(forceD["msg"]["wrench"]["torque"]["y"].IsDouble());
-    // assert(forceD["msg"]["wrench"]["torque"]["z"].IsDouble());
-
-    // assert(forceD["msg"].HasMember("header"));
-    // assert(forceD["msg"]["header"].HasMember("stamp"));
-    // assert(forceD["msg"]["header"]["stamp"].HasMember("secs"));
-    // assert(forceD["msg"]["header"]["stamp"].HasMember("nsecs"));
-    // assert(forceD["msg"]["header"]["stamp"]["secs"].IsUint());
-    // assert(forceD["msg"]["header"]["stamp"]["nsecs"].IsUint());
-
-    // double x = forceD["msg"]["wrench"]["force"]["x"].GetDouble();
-    // double y = forceD["msg"]["wrench"]["force"]["y"].GetDouble();
-    // double z = forceD["msg"]["wrench"]["force"]["z"].GetDouble();
-
-    const rapidjson::Value& wrench = forceD["msg"]["O_F_ext_hat_K"];
-    std::vector <std::double_t> wrench_list;
-
-    unwrap_json_double_array(wrench, wrench_list);
-
-    for (rapidjson::Value::ConstValueIterator itr = wrench.Begin(); itr != wrench.End(); ++itr) {
-        const rapidjson::Value& attribute = *itr;
-
-        wrench_list.push_back(attribute.GetDouble());
-    }
-
-    // double timestamp = forceD["msg"]["header"]["stamp"]["secs"].GetUint() + (double) forceD["msg"]["header"]["stamp"]["secs"].GetUint()/pow(10, 9);
-    // double timestamp = forceD["msg"]["stamp"]["time"].GetDouble();
-    double timestamp = -1.0;
-
-    forceBuffer[forceBufferIndex] = {wrench_list[0],wrench_list[1],wrench_list[2]};
-    forceBufferIndex++;
-    forceBufferIndex = forceBufferIndex % 10; //cycle through each value in array 
-
-    SimTK::Vec3 fSum = {0,0,0};
-
-    for (int i = 0; i < 10; i++) {
-        fSum = fSum + forceBuffer[i];
-    }
-    fSum = fSum / 10;
-
-    {
-        fInMutex.lock(); //locks mutex
-        
-        
-
-        //save to global variable
-        // latestForce = {x,y,z};
-        latestForce = fSum;
-        if (timestamp < 0) { //DEBUG CODE, USED TO SEND REPEATED INPUT WITHOUT FRANKA
-            latestTime += 0.002;
+        pi.torqueMag = sqrt(~torque * torque);
+        if (pi.torqueMag == 0) {
+            pi.torqueDirection = {1,1,1}; //no force anyway
         } else {
-            latestTime = timestamp;
+            pi.torqueDirection = torque / pi.torqueMag;
         }
-        fInMutex.unlock(); // unlocks mutex
+        
+        if (timestamp < 0) { //DEBUG CODE, USED TO SEND REPEATED INPUT WITHOUT FRANKA
+            pi.timestamp = latestProblem.timestamp + 0.002;
+        } else {
+            pi.timestamp = timestamp;
+        }
+
+        OS3ROS::set_latest_problem(pi);
+
+        auto callOut = std::chrono::steady_clock::now();
+        std::chrono::duration<double> callDur = std::chrono::duration_cast<std::chrono::duration<double>>(callOut - callIn);
+        std::cout << " calltime: " << callDur.count() << " ";
     }
-    std::cout << " fReceived x: " << wrench_list[0] << " y: " << wrench_list[1] << " z: " << wrench_list[2] << "time: " << timestamp << std::endl;
-    
 
-    // auto callOut = std::chrono::steady_clock::now();
-    // std::chrono::duration<double> callDur = std::chrono::duration_cast<std::chrono::duration<double>>(callOut - callIn);
-    // std::cout << " calltime: " << callDur.count() << " ";
-}
-template <typename T>
-
-void unwrap_json_double_array(const rapidjson::Value& docArray, std::vector<double> arrayList) {
-    for (rapidjson::Value::ConstValueIterator itr = docArray.Begin(); itr != docArray.End(); ++itr) {
-        const rapidjson::Value& attribute = *itr;
-
-        arrayList.push_back(attribute.GetDouble());
-    }
 }
