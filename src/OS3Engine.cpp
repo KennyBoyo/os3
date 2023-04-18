@@ -173,7 +173,7 @@ bool OS3Engine::generateIDModel(void) {
 
     // IDelbowJoint.getCoordinate().setValue(state, position);
     //lock joints - Only if we're performing ID first, not necessary for the direct FD method
-    IDelbowJoint.getCoordinate().setValue(si,convertDegreesToRadians(90));
+    // IDelbowJoint.getCoordinate().setValue(si,convertDegreesToRadians(90));
     std::cout << IDshoulderJoint.get_coordinates(0).getName() << "<--name of shoulder coord 0. Let's set it to pi radians\n";
     
     #define IDFD
@@ -330,7 +330,7 @@ OS3Engine::ID_Output OS3Engine::inverseD(void) {
     // r_shoulder_elev
     const OpenSim::Coordinate& IDShoulderFlex = IDshoulderJoint.get_coordinates(0);
     // r_shoulder_rot
-    const OpenSim::Coordinate& IDShoulderRot = IDshoulderJoint.get_coordinates(1);
+    const OpenSim::Coordinate& IDShoulderRot = IDjointset.get("r_shoulder1").get_coordinates(1);
     // r_shoulder_add
     const OpenSim::Coordinate& IDShoulderAdd = IDshoulderJoint.get_coordinates(2);
 
@@ -349,8 +349,6 @@ OS3Engine::ID_Output OS3Engine::inverseD(void) {
     IDShoulderAdd.setValue(state_, input.angles[2]);
     IDElbowFlex.setValue(state_, input.angles[3]);
     
-
-    std::cout << IDShoulderAdd.getValue(state_) << std::endl;
     #ifdef LOGGING
         std::cout << "After: " << IDelbowJoint.getCoordinate().getValue(state_) << std::endl;
     #endif
@@ -403,8 +401,7 @@ OS3Engine::ID_Output OS3Engine::inverseD(void) {
     output.valid = true;
 
     #ifdef LOGGING
-        std::cout << "residualmob: " << output.residualMobilityForces << " from forcevec: " <<  latestForce << "\n magnitude: " << input.forceMag << " and direction: " << input.forceDirection << std::endl;
-        std::cout << output.residualMobilityForces << std::endl;
+        std::cout << "residualmob: " << output.residualMobilityForces << std::endl << "magnitude: " << input.forceMag << std::endl  << "direction: " << input.forceDirection << std::endl;
     #endif
 
     prevSimTime = input.timestamp;
