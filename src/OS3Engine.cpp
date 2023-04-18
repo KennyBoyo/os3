@@ -287,10 +287,13 @@ void OS3Engine::step(void) {
 
 
 OS3Engine::ID_Output OS3Engine::inverseD(void) {
-
+    #undef LOGGING
     
     OS3ROS::ProblemInput input(OS3ROS::get_latest_problem()); //need to make this threadsafe eventually
     OS3Engine::ID_Output output;
+
+    // std::cout << "Here: " << input.forceDirection << std::endl;
+    // std::cout << "Time: " << input.timestamp << std::endl;
 
     output.valid = false; //change to true later if data
     output.timestamp = input.timestamp;
@@ -316,11 +319,47 @@ OS3Engine::ID_Output OS3Engine::inverseD(void) {
 
     IDelbowJoint.getCoordinate().setLocked(state_, false);
     IDelbowJoint.getCoordinate().getLocked(state_);
-    std::cout << "Before: " << IDelbowJoint.getCoordinate().getValue(state_) << std::endl;
-    IDelbowJoint.getCoordinate().setValue(state_, IDelbowJoint.getCoordinate().getValue(state_) + convertDegreesToRadians(5));
-    std::cout << "After: " << IDelbowJoint.getCoordinate().getValue(state_) << std::endl;
+    #ifdef LOGGING
+        std::cout << "Before: " << IDelbowJoint.getCoordinate().getValue(state_) << std::endl;
+    #endif
 
-    IDelbowJoint.getCoordinate().setLocked(state_, true);
+    // TESTING Setting joint angles at each time step
+    // IDelbowJoint.getCoordinate().setValue(state_, IDelbowJoint.getCoordinate().getValue(state_) + convertDegreesToRadians(5));
+    // r_elbow_flex
+    const OpenSim::Coordinate& IDElbowFlex = IDelbowJoint.getCoordinate();
+    // r_shoulder_elev
+    const OpenSim::Coordinate& IDShoulderFlex = IDshoulderJoint.get_coordinates(0);
+    // r_shoulder_rot
+    const OpenSim::Coordinate& IDShoulderRot = IDshoulderJoint.get_coordinates(1);
+    // r_shoulder_add
+    const OpenSim::Coordinate& IDShoulderAdd = IDshoulderJoint.get_coordinates(2);
+
+
+
+    IDShoulderFlex.setLocked(state_, false);
+    IDShoulderRot.setLocked(state_, false);
+    IDShoulderAdd.setLocked(state_, false);
+    IDElbowFlex.setLocked(state_, false);
+
+    
+    // IDElbowFlex.setValue(state_, IDElbowFlex.getValue(state_) + convertDegreesToRadians(5));
+
+    IDShoulderFlex.setValue(state_, input.angles[0]);
+    IDShoulderRot.setValue(state_, input.angles[1]);
+    IDShoulderAdd.setValue(state_, input.angles[2]);
+    IDElbowFlex.setValue(state_, input.angles[3]);
+    
+
+    std::cout << IDShoulderAdd.getValue(state_) << std::endl;
+    #ifdef LOGGING
+        std::cout << "After: " << IDelbowJoint.getCoordinate().getValue(state_) << std::endl;
+    #endif
+
+    IDShoulderFlex.setLocked(state_, true);
+    IDShoulderRot.setLocked(state_, true);
+    IDShoulderAdd.setLocked(state_, true);
+    IDElbowFlex.setLocked(state_, true);
+    // IDelbowJoint.getCoordinate().setLocked(state_, true);
     
     IDmanager = new OpenSim::Manager(IDModel);
     IDmanager->initialize(state_);
@@ -361,11 +400,14 @@ OS3Engine::ID_Output OS3Engine::inverseD(void) {
 
     output.residualMobilityForces = idSolver->solve(state_,Udot,appliedMobilityForces,appliedBodyForces);
 
-    // std::cout << "residualmob: " << output.residualMobilityForces << " from forcevec: " <<  latestForce << "\n magnitude: " << input.forceMag << " and direction: " << input.forceDirection << std::endl;
     output.valid = true;
-    cout << output.residualMobilityForces << endl;
 
+    #ifdef LOGGING
+        std::cout << "residualmob: " << output.residualMobilityForces << " from forcevec: " <<  latestForce << "\n magnitude: " << input.forceMag << " and direction: " << input.forceDirection << std::endl;
+        std::cout << output.residualMobilityForces << std::endl;
+    #endif
 
+    prevSimTime = input.timestamp;
     
     return output;
 

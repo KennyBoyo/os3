@@ -14,7 +14,7 @@ namespace OS3ROS {
     //callbacks
     void problemSubscriberCallback(std::shared_ptr<WsClient::Connection> /*connection*/, std::shared_ptr<WsClient::InMessage> in_message);
     // void createSubscriberThread(RosbridgeWsClient& client, const std::future<void>& futureObj, const std::string& clientName, const std::string& topicName, const InMessage& callback);
-    void createSubscriberThread(RosbridgeWsClient& client, const std::future<void>& futureObj, const std::string& clientName, const std::string& topicName);
+    void createSubscriberThread(RosbridgeWsClient& client, const std::future<void>& futureObj, const std::string& clientName, const std::string& topicName, const InMessage& callback);
 
     namespace {
         std::promise<void> problemSubExitSignal;
@@ -48,9 +48,11 @@ namespace OS3ROS {
         const std::string problemSubscriberThreadName = "problem_subscriber";
         const std::string problemSubscriberThreadTopic = "/problem_topic";
 
-        std::thread problemSubThread(&createSubscriberThread, std::ref(RBcppClient), std::cref(problemSubFutureObj), std::cref(problemSubscriberThreadName), std::cref(problemSubscriberThreadTopic));
+        // std::thread problemSubThread(&createSubscriberThread, std::ref(RBcppClient), std::cref(problemSubFutureObj), std::cref(problemSubscriberThreadName), std::cref(problemSubscriberThreadTopic));
 
-        // std::this_thread::sleep_for(std::chrono::seconds(5));
+        problemSubThread = new std::thread(&createSubscriberThread, std::ref(RBcppClient), std::cref(problemSubFutureObj), std::cref(problemSubscriberThreadName), std::cref(problemSubscriberThreadTopic), std::cref(problemSubscriberCallback));
+    
+        std::this_thread::sleep_for(std::chrono::seconds(5));
         std::cout << " ...threads/clients created\n";
         
         return;
@@ -86,25 +88,23 @@ namespace OS3ROS {
 
         while(futureObj.wait_for(std::chrono::microseconds(500*10000)) == std::future_status::timeout) {
             //do nothing (subcription is handled by interrupts)
-            std::cout << "Subscribed to " << topicName << endl;
         }
 
     }
 
-    void createSubscriberThread(RosbridgeWsClient& client, const std::future<void>& futureObj, const std::string& clientName, const std::string& topicName) {
+    // void createSubscriberThread(RosbridgeWsClient& client, const std::future<void>& futureObj, const std::string& clientName, const std::string& topicName) {
 
-        std::cout << "Subscribing to " << topicName << endl;
+    //     std::cout << "Subscribing to " << topicName << endl;
 
-        client.addClient(clientName);
-        client.subscribe(clientName, topicName, problemSubscriberCallback);
-        std::cout << "Subscribed to " << topicName << endl;
+    //     client.addClient(clientName);
+    //     client.subscribe(clientName, topicName, problemSubscriberCallback);
+    //     std::cout << "Subscribed to " << topicName << endl;
 
-        while(futureObj.wait_for(std::chrono::microseconds(500*10000)) == std::future_status::timeout) {
-            //do nothing (subcription is handled by interrupts)
-            std::cout << "Subscribed to " << topicName << endl;
-        }
+    //     while(futureObj.wait_for(std::chrono::microseconds(500*10000)) == std::future_status::timeout) {
+    //         //do nothing (subcription is handled by interrupts)         
+    //     }
 
-    }
+    // }
 
 
     void problemSubscriberCallback(std::shared_ptr<WsClient::Connection>, std::shared_ptr<WsClient::InMessage> in_message)
@@ -112,8 +112,8 @@ namespace OS3ROS {
 
         auto callIn =  std::chrono::steady_clock::now();
         
-        #undef DEBUG
-        #ifdef DEBUG
+        #undef LOGGING
+        #ifdef LOGGING
         std::cout << "subscriberCallback(): Message Received: " << in_message->string() << std::endl; //THIS DESTROYS THE BUFFER AND SO CAN ONLY BE CALLED ONCE
         #endif
         
@@ -129,8 +129,13 @@ namespace OS3ROS {
         assert(problemDoc["msg"].HasMember("header"));
         assert(problemDoc["msg"]["header"].HasMember("stamp"));
         assert(problemDoc["msg"]["header"]["stamp"].HasMember("secs"));
-        double timestamp = problemDoc["msg"]["header"]["stamp"]["secs"].GetDouble();
-
+        assert(problemDoc["msg"]["header"]["stamp"].HasMember("nsecs"));
+        double timestamp = problemDoc["msg"]["header"]["stamp"]["secs"].GetUint() + ((double) (problemDoc["msg"]["header"]["stamp"]["nsecs"].GetUint()))/1000000000;
+        
+        #ifdef LOGGING
+            std::cout << "Message Time: "  << timestamp << std::endl;
+        #endif
+        
         // Check Arm Joint Names Present
         assert(problemDoc["msg"].HasMember("name"));
         const rapidjson::Value& nameDoc = problemDoc["msg"]["name"];
@@ -180,6 +185,7 @@ namespace OS3ROS {
             pi.torqueDirection = torque / pi.torqueMag;
         }
         
+        timestamp = -1;
         if (timestamp < 0) { //DEBUG CODE, USED TO SEND REPEATED INPUT WITHOUT FRANKA
             pi.timestamp = latestProblem.timestamp + 0.002;
         } else {
@@ -190,7 +196,9 @@ namespace OS3ROS {
 
         auto callOut = std::chrono::steady_clock::now();
         std::chrono::duration<double> callDur = std::chrono::duration_cast<std::chrono::duration<double>>(callOut - callIn);
-        std::cout << " calltime: " << callDur.count() << " ";
+        #ifdef LOGGING
+            std::cout << " calltime: " << callDur.count() << std::endl;
+        #endif
     }
 
 }

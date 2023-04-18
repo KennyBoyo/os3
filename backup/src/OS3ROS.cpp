@@ -50,7 +50,7 @@ void OS3ROS::init(void) {
         latestTime = 0.0;
         fInMutex.unlock();
     }
-`
+
     for (int i = 0; i < 10; i++) {
         forceBuffer[i].setToZero();
     }    
