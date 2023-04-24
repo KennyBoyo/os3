@@ -330,9 +330,9 @@ OS3Engine::ID_Output OS3Engine::inverseD(void) {
     // r_shoulder_elev
     const OpenSim::Coordinate& IDShoulderFlex = IDshoulderJoint.get_coordinates(0);
     // r_shoulder_rot
-    const OpenSim::Coordinate& IDShoulderRot = IDjointset.get("r_shoulder1").get_coordinates(1);
+    const OpenSim::Coordinate& IDShoulderRot = IDjointset.get("r_shoulder2").get_coordinates(1);
     // r_shoulder_add
-    const OpenSim::Coordinate& IDShoulderAdd = IDshoulderJoint.get_coordinates(2);
+    const OpenSim::Coordinate& IDShoulderAdd = IDjointset.get("r_shoulder1").get_coordinates(2);
 
 
 

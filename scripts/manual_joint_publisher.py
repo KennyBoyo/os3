@@ -83,7 +83,7 @@ if __name__ == "__main__":
     rot = 0 # y axis
     elbow = 0
     addu = -np.pi/2 # x axis
-    elev = np.pi/2 # z axis
+    elev = np.pi/4 # z axis
 
     # elbow = np.pi/2
     # addu = thetas[1]
@@ -96,17 +96,17 @@ if __name__ == "__main__":
         default_msg.position = [elev,rot,addu,elbow]
         # print(default_msg.position)
 
-        # elev -= 0.1
-        # elev = elev%(2*np.pi)
+        elev -= 0.1
+        elev = elev%(2*np.pi)
 
-        addu += 0.1
-        addu = addu%(2*np.pi)
+        # addu += 0.1
+        # addu = addu%(2*np.pi)
 
         # elbow += 0.1
         # elbow = elbow%(2*np.pi)
         
-        rot += 0.1
-        rot = rot%(2*np.pi)
+        # rot += 0.1
+        # rot = rot%(2*np.pi)
 
         pub.publish(default_msg)
         rate.sleep()
