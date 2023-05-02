@@ -137,7 +137,7 @@ namespace OS3ROS {
     }
 
     void JSONArrayFromDoubles(rapidjson::Document d, std::string fieldName, std::vector<double> vec) {
-        d.SetObject();
+        // d.SetObject();
         rapidjson::Value arr(rapidjson::kArrayType);
 
         for (int i = 0; i < vec.size(); i++) {
@@ -152,7 +152,7 @@ namespace OS3ROS {
     }
 
     void JSONArrayFromStrings(rapidjson::Document d, std::string fieldName, std::vector<std::string> vec) {
-        d.SetObject();
+        // d.SetObject();
         rapidjson::Value arr(rapidjson::kArrayType);
 
         for (int i = 0; i < vec.size(); i++) {
@@ -176,8 +176,9 @@ namespace OS3ROS {
         //     std::vector<double> torques;
         // };
 
-        rapidjson::Document d;
+        rapidjson::Document d(rapidjson::kStringType);
         // d.SetObject();
+        JSONArrayFromStrings(d, std::string("names"), problemOutput.names);
         
         rapidjson::Value names(rapidjson::kArrayType);
         rapidjson::Value angles(rapidjson::kArrayType);
