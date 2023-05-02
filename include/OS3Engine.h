@@ -1,3 +1,5 @@
+#pragma once
+
 #include <OpenSim/OpenSim.h>
 #include "OpenSim/Common/STOFileAdapter.h"
 #include "OS3ROS.h"
@@ -33,20 +35,13 @@ class OS3Engine {
         OpenSim::PointActuator endEffector;
         double IDtimestep;
         double prevSimTime;
-
-        struct ID_Output {
-            double timestamp;
-            SimTK::Vector residualMobilityForces;
-            bool valid;
-        };
         
         //performs one iteration of inverse dynamics
-        ID_Output inverseD(void);
+        OS3ROS::ProblemOutput inverseD(void);
 
         void step(void);
 
         struct ProblemParams {
-
             double timestamp;
             double forceMag;
             SimTK::Vec3 forceDirection;

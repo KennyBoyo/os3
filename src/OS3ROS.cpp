@@ -2,10 +2,12 @@
 #include <chrono>
 #include <math.h>
 #include "OS3ROS.h"
+#include "OS3Engine.h"
 
 using namespace SimTK;
 using namespace OpenSim;
 using namespace std;
+using namespace OS3;
 
 #define LOGGING 
 
@@ -21,8 +23,12 @@ namespace OS3ROS {
         std::thread* problemSubThread;
         std::future<void> problemSubFutureObj;
 
+        std::promise<void> problemPubExitSignal;
+        std::thread* problemPubThread;
+        std::future<void> problemPubFutureObj;
+
         //public within namespace
-        RosbridgeWsClient RBcppClient("localhost:9090");
+        RosbridgeWsClient RBcppClient("172.16.0.102:9090");
 
         // Force Message Storage
         std::mutex problemMutex;
@@ -46,12 +52,17 @@ namespace OS3ROS {
         problemSubFutureObj = problemSubExitSignal.get_future();
 
         const std::string problemSubscriberThreadName = "problem_subscriber";
-        const std::string problemSubscriberThreadTopic = "/problem_topic";
+        const std::string problemSubscriberThreadTopic = "/os3/synchronised_step_problem";
 
         // std::thread problemSubThread(&createSubscriberThread, std::ref(RBcppClient), std::cref(problemSubFutureObj), std::cref(problemSubscriberThreadName), std::cref(problemSubscriberThreadTopic));
 
+        RBcppClient.addClient("topic_advertiser");
+        RBcppClient.advertise("topic_advertiser", "/os3/step_problem_solution", "franka_panda_controller_swc/ArmJointPos");
+
         problemSubThread = new std::thread(&createSubscriberThread, std::ref(RBcppClient), std::cref(problemSubFutureObj), std::cref(problemSubscriberThreadName), std::cref(problemSubscriberThreadTopic), std::cref(problemSubscriberCallback));
     
+        problemPubFutureObj = problemPubExitSignal.get_future();
+        problemPubThread = new std::thread(&positionPublisherThread, std::ref(RBcppClient), std::cref(problemPubFutureObj));
         std::this_thread::sleep_for(std::chrono::seconds(5));
         std::cout << " ...threads/clients created\n";
         
@@ -92,20 +103,114 @@ namespace OS3ROS {
 
     }
 
-    // void createSubscriberThread(RosbridgeWsClient& client, const std::future<void>& futureObj, const std::string& clientName, const std::string& topicName) {
+    void positionPublisherThread(RosbridgeWsClient& client, const std::future<void>& futureObj) {
 
-    //     std::cout << "Subscribing to " << topicName << endl;
+        std::cout << "pos publisher";
 
-    //     client.addClient(clientName);
-    //     client.subscribe(clientName, topicName, problemSubscriberCallback);
-    //     std::cout << "Subscribed to " << topicName << endl;
+        client.addClient("position_publisher");
 
-    //     while(futureObj.wait_for(std::chrono::microseconds(500*10000)) == std::future_status::timeout) {
-    //         //do nothing (subcription is handled by interrupts)         
-    //     }
+        OS3::ID_Output data;
+        bool newData = false;
+        // std::this_thread::sleep_for(std::chrono::seconds(10)); std::cout << "pub thread: ready for data";
+        while(futureObj.wait_for(std::chrono::microseconds(500)) == std::future_status::timeout) {
+            
+            if (posOutMutex.try_lock()) {
+                    if (_newPosAvailable) {
+                        data = latestPositionData;
+                        newData = true; //for this thread's reference
+                        _newPosAvailable = false; // we've accessed this data point, so mark it as old
+                    }
+                posOutMutex.unlock();
+            }
+            if (newData) {
+                publishState(data);
+                newData = false;            
+                // std::cout << "             PUBTHREAD: pubbed!";
+            }
+            
+        }
 
-    // }
+        client.removeClient("position_publisher");
+        std::cout << "publisher thread has stopped" << std::endl;
 
+        return;
+    }
+
+    void JSONArrayFromDoubles(rapidjson::Document d, std::string fieldName, std::vector<double> vec) {
+        d.SetObject();
+        rapidjson::Value arr(rapidjson::kArrayType);
+
+        for (int i = 0; i < vec.size(); i++) {
+            arr.PushBack(vec[i], d.GetAllocator());   // allocator is needed for potential realloc().
+        }
+
+
+        rapidjson::Value str(rapidjson::kStringType);
+        str.SetString(fieldName.c_str(), fieldName.size());
+
+        d.AddMember(str, arr, d.GetAllocator());
+    }
+
+    void JSONArrayFromStrings(rapidjson::Document d, std::string fieldName, std::vector<std::string> vec) {
+        d.SetObject();
+        rapidjson::Value arr(rapidjson::kArrayType);
+
+        for (int i = 0; i < vec.size(); i++) {
+            arr.PushBack(rapidjson::Value(vec[i].c_str(), vec[i].size()), d.GetAllocator());   // allocator is needed for potential realloc().
+        }
+
+        rapidjson::Value str(rapidjson::kStringType);
+        str.SetString(fieldName.c_str(), fieldName.size());
+
+        d.AddMember(str, arr, d.GetAllocator());
+    }
+
+    bool publishState(OS3ROS::ProblemOutput problemOutput) {
+
+
+
+        // struct ProblemOutput {
+        //     std::vector<std::string> names;
+        //     std::vector<double> angles;
+        //     d.AddMember("names", names, d.GetAllocator());std::vector<double> velocities;
+        //     std::vector<double> torques;
+        // };
+
+        rapidjson::Document d;
+        // d.SetObject();
+        
+        rapidjson::Value names(rapidjson::kArrayType);
+        rapidjson::Value angles(rapidjson::kArrayType);
+        rapidjson::Value velocities(rapidjson::kArrayType);
+        rapidjson::Value torques(rapidjson::kArrayType);
+        
+        for (int i = 0; i < problemOutput.names.size(); i++)
+            names.PushBack(i, d.GetAllocator());   // allocator is needed for potential realloc().
+        
+        for (int i = 0; i < problemOutput.names.size(); i++)
+            velocities.PushBack(i, d.GetAllocator());   // allocator is needed for potential realloc().
+        for (int i = 0; i < problemOutput.names.size(); i++)
+            torques.PushBack(i, d.GetAllocator());   // allocator is needed for potential realloc().
+
+        d.AddMember("names", names, d.GetAllocator());
+        d.AddMember("angles", angles, d.GetAllocator());
+        d.AddMember("velocities", velocities, d.GetAllocator());
+        d.AddMember("torques", torques, d.GetAllocator());
+
+        rapidjson::Value msg(rapidjson::kObjectType);
+
+        
+        JSONArrayFromStrings(d, std::string("names"), problemOutput.names);
+        
+        // std::cout << d["wrist"]["x"].GetDouble() << "<--wrist pos\n";
+        // std::cout << "    published stuff to /OS3topic   ";
+        RBcppClient.publish("/OS3topic",d);    //TODO Currently the rosbridgecpp library 
+                        //opens and closes a new connection each time a message is sent. 
+                        //This is computationally expensive and so the library should be modified accordingly
+
+
+        return true; //when should we return false? //TODO
+    }
 
     void problemSubscriberCallback(std::shared_ptr<WsClient::Connection>, std::shared_ptr<WsClient::InMessage> in_message)
     {  

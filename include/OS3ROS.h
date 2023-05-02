@@ -1,3 +1,5 @@
+#pragma once
+
 #include <OpenSim/OpenSim.h>
 #include "OpenSim/Common/STOFileAdapter.h"
 
@@ -23,6 +25,13 @@ namespace OS3ROS {
         double forceMag;
         double torqueMag;
         double timestamp;
+    };
+
+    struct ProblemOutput {
+        std::vector<std::string> names;
+        std::vector<double> angles;
+        std::vector<double> velocities;
+        std::vector<double> torques;
     };
     
     ProblemInput get_latest_problem(void);

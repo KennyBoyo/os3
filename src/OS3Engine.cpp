@@ -277,25 +277,27 @@ void OS3Engine::step(void) {
     auto startStepClock = std::chrono::steady_clock::now();
 
     //step id first using OS3Engine::inverseD
-    OS3Engine::ID_Output IDout = inverseD();
+    OS3::ID_Output IDout = inverseD();
         
     prevSimTime = IDout.timestamp; //shouldn't be necessary with control input //TODO this
+    
+
 
     auto finishStepClock = std::chrono::steady_clock::now();
     std::chrono::duration<double> stepDuration = std::chrono::duration_cast<std::chrono::duration<double>>(finishStepClock - startStepClock);
 }
 
 
-OS3Engine::ID_Output OS3Engine::inverseD(void) {
+OS3::ID_Output OS3Engine::inverseD(void) {
     #undef LOGGING
     
     OS3ROS::ProblemInput input(OS3ROS::get_latest_problem()); //need to make this threadsafe eventually
-    OS3Engine::ID_Output output;
+    OS3::ID_Output output;
+    OS3ROS::ProblemOutput output;
 
     // std::cout << "Here: " << input.forceDirection << std::endl;
     // std::cout << "Time: " << input.timestamp << std::endl;
 
-    output.valid = false; //change to true later if data
     output.timestamp = input.timestamp;
 
     if (input.timestamp <= prevSimTime) {
@@ -397,8 +399,6 @@ OS3Engine::ID_Output OS3Engine::inverseD(void) {
     SimTK::Vector_<SimTK::SpatialVec> appliedBodyForces(IDModel.getMultibodySystem().getRigidBodyForces(state_, SimTK::Stage::Dynamics));
 
     output.residualMobilityForces = idSolver->solve(state_,Udot,appliedMobilityForces,appliedBodyForces);
-
-    output.valid = true;
 
     #ifdef LOGGING
         std::cout << "residualmob: " << output.residualMobilityForces << std::endl << "magnitude: " << input.forceMag << std::endl  << "direction: " << input.forceDirection << std::endl;
