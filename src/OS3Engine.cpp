@@ -214,20 +214,20 @@ bool OS3Engine::generateIDModel(void) {
 
     IDModel.getVisualizer().show(state_);
     IDModel.getMultibodySystem().realize(state_, Stage::Dynamics);
-    // std::cout << "----------------IMPORTANT-------------------\n";
-    // std::cout << "how many nq are there?\n";
-    // std::cout << "and what coordinates do they represent?\n";
-    // std::cout << "we shall find out\n";
-    // std::cout << "there are ....  " << state_.getNQ() << " NQ in state_\n";
-    // std::cout << "the current Q are " << state_.getQ() << " at initialisation\n";
-    // std::cout << "but there are more subsystems\n";
-    // std::cout << state_.getNumSubsystems() << " subsystems actually\n";
-    // std::cout << "so let's try something different\n";
-    // for (SimTK::SubsystemIndex subsysI(0); subsysI < state_.getNumSubsystems(); subsysI++) {
-    //     std::cout << state_.getNQ(subsysI) << " NQ in subsys " << subsysI << "\n";
+    std::cout << "----------------IMPORTANT-------------------\n";
+    std::cout << "how many nq are there?\n";
+    std::cout << "and what coordinates do they represent?\n";
+    std::cout << "we shall find out\n";
+    std::cout << "there are ....  " << state_.getNQ() << " NQ in state_\n";
+    std::cout << "the current Q are " << state_.getQ() << " at initialisation\n";
+    std::cout << "but there are more subsystems\n";
+    std::cout << state_.getNumSubsystems() << " subsystems actually\n";
+    std::cout << "so let's try something different\n";
+    for (SimTK::SubsystemIndex subsysI(0); subsysI < state_.getNumSubsystems(); subsysI++) {
+        std::cout << state_.getNQ(subsysI) << " NQ in subsys " << subsysI << "\n";
            
-    // }
-    // std::cout << "what does this mean?\n";
+    }
+    std::cout << "what does this mean?\n";
     
 
     SimTK::Vector residualMobilityForces;
@@ -278,7 +278,7 @@ void OS3Engine::step(void) {
 
     //step id first using OS3Engine::inverseD
     OS3ROS::ProblemOutput IDout = inverseD();
-    OS3ROS::set_latest_solution(IDout);
+    // OS3ROS::set_latest_solution(IDout);
         
     // prevSimTime = IDout.timestamp; //shouldn't be necessary with control input //TODO this
     
@@ -301,9 +301,9 @@ OS3ROS::ProblemOutput OS3Engine::inverseD(void) {
     // std::cout << "Here: " << input.forceDirection << std::endl;
     // std::cout << "Time: " << input.timestamp << std::endl;
 
-    for (auto i = 0; i < input.names.size(); i++) {
-        std::cout << "name" << input.names[i] << std::endl;
-    }
+    // for (auto i = 0; i < input.names.size(); i++) {
+    //     std::cout << input.names[i].c_str() << std::endl;
+    // }
     // for (auto i = 0; i < input.angles.size(); i++) {
     //     std::cout << "angles" << input.angles[i] << std::endl;
     // }
@@ -349,9 +349,9 @@ OS3ROS::ProblemOutput OS3Engine::inverseD(void) {
     // r_shoulder_elev
     const OpenSim::Coordinate& IDShoulderFlex = IDshoulderJoint.get_coordinates(0);
     // r_shoulder_rot
-    const OpenSim::Coordinate& IDShoulderRot = IDjointset.get("r_shoulder2").get_coordinates(1);
+    const OpenSim::Coordinate& IDShoulderRot = IDjointset.get("r_shoulder2").get_coordinates(0);
     // r_shoulder_add
-    const OpenSim::Coordinate& IDShoulderAdd = IDjointset.get("r_shoulder1").get_coordinates(2);
+    const OpenSim::Coordinate& IDShoulderAdd = IDjointset.get("r_shoulder1").get_coordinates(0);
 
 
 
@@ -416,34 +416,38 @@ OS3ROS::ProblemOutput OS3Engine::inverseD(void) {
     SimTK::Vector_<SimTK::SpatialVec> appliedBodyForces(IDModel.getMultibodySystem().getRigidBodyForces(state_, SimTK::Stage::Dynamics));
 
     SimTK::Vector residualMobilityForces = idSolver->solve(state_,Udot,appliedMobilityForces,appliedBodyForces);
-    std::cout << "HERE" << std::endl;
-    for (auto i = 0; i < input.names.size(); i++) {
-        std::cout << "name" << input.names[i] << std::endl;
-    }
+    
     for (auto i = 0; i < residualMobilityForces.size(); i++) {
         output.torques.push_back(residualMobilityForces[i]);
+    }
+    for (auto i = 0; i < input.names.size(); i++) {
         output.names.push_back(input.names[i].c_str());
+    }
+    for (auto i = 0; i < input.angles.size(); i++) {
         output.angles.push_back(input.angles[i]);
+    }
+    for (auto i = 0; i < input.velocities.size(); i++) {
         output.velocities.push_back(input.velocities[i]);
     }
 
-    for (auto i = 0; i < output.names.size(); i++) {
-        std::cout << "name" << output.names[i] << std::endl;
-    }
-    for (auto i = 0; i < output.angles.size(); i++) {
-        std::cout << "angles" << output.angles[i] << std::endl;
-    }
-    for (auto i = 0; i < output.velocities.size(); i++) {
-        std::cout << "velocities" << output.velocities[i] << std::endl;
-    }
-    for (auto i = 0; i < output.torques.size(); i++) {
-        std::cout << "wrench" << output.torques[i] << std::endl;
-    }
+    // for (auto i = 0; i < output.names.size(); i++) {
+    //     std::cout << "name" << output.names[i] << std::endl;
+    // }
+    // for (auto i = 0; i < output.angles.size(); i++) {
+    //     std::cout << "angles" << output.angles[i] << std::endl;
+    // }
+    // for (auto i = 0; i < output.velocities.size(); i++) {
+    //     std::cout << "velocities" << output.velocities[i] << std::endl;
+    // }
+    // for (auto i = 0; i < output.torques.size(); i++) {
+    //     std::cout << "wrench" << output.torques[i] << std::endl;
+    // }
 
     // std::cout << output.names[0] << std::endl;
     // output.names = input.names;
     // output.angles = input.angles;
     // output.velocities = input.velocities;
+    // std::cout << "residualmob: " << residualMobilityForces << std::endl;
 
     #ifdef LOGGING
         std::cout << "residualmob: " << output.residualMobilityForces << std::endl << "magnitude: " << input.forceMag << std::endl  << "direction: " << input.forceDirection << std::endl;
@@ -451,6 +455,7 @@ OS3ROS::ProblemOutput OS3Engine::inverseD(void) {
 
     prevSimTime = input.timestamp;
     
+    OS3ROS::set_latest_solution(output);
     return output;
 
 }

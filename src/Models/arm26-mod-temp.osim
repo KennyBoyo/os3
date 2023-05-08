@@ -238,11 +238,10 @@
 									<!--Rotation or translation axis for the transform.-->
 									<axis>0 1 0</axis>
 									<!--Transform function of the generalized coordinates used to        represent the amount of transformation along a specified axis.-->
-									<!--Transform function of the generalized coordinates used to        represent the amount of transformation along a specified axis.-->
 									<function>
-										<Constant>
-											<value>0</value>
-										</Constant>
+										<LinearFunction>
+											<coefficients> 1 0</coefficients>
+										</LinearFunction>
 									</function>
 								</TransformAxis>
 								<TransformAxis name="rotation3">
@@ -252,9 +251,9 @@
 									<axis>0.99826136 -0 0.05889802</axis>
 									<!--Transform function of the generalized coordinates used to        represent the amount of transformation along a specified axis.-->
 									<function>
-										<Constant>
-											<value>0</value>
-										</Constant>
+										<LinearFunction>
+											<coefficients> 1 0</coefficients>
+										</LinearFunction>
 									</function>
 								</TransformAxis>
 								<!--3 Axes for translations are listed next.-->
@@ -351,9 +350,9 @@
 									<axis>-0.05889802 0.0023 0.99826136</axis>
 									<!--Transform function of the generalized coordinates used to        represent the amount of transformation along a specified axis.-->
 									<function>
-										<Constant>
-											<value>0</value>
-										</Constant>
+										<LinearFunction>
+											<coefficients> 1 0</coefficients>
+										</LinearFunction>
 									</function>
 								</TransformAxis>
 								<TransformAxis name="rotation2">
@@ -363,9 +362,9 @@
 									<axis>0 1 0</axis>
 									<!--Transform function of the generalized coordinates used to        represent the amount of transformation along a specified axis.-->
 									<function>
-										<Constant>
-											<value>0</value>
-										</Constant>
+										<LinearFunction>
+											<coefficients> 1 0</coefficients>
+										</LinearFunction>
 									</function>
 								</TransformAxis>
 								<TransformAxis name="rotation3">
@@ -474,9 +473,9 @@
 									<axis>-0.05889802 0.0023 0.99826136</axis>
 									<!--Transform function of the generalized coordinates used to        represent the amount of transformation along a specified axis.-->
 									<function>
-										<Constant>
-											<value>0</value>
-										</Constant>
+										<LinearFunction>
+											<coefficients> 1 0</coefficients>
+										</LinearFunction>
 									</function>
 								</TransformAxis>
 								<TransformAxis name="rotation2">
@@ -498,9 +497,9 @@
 									<axis>0.99826136 -0 0.05889802</axis>
 									<!--Transform function of the generalized coordinates used to        represent the amount of transformation along a specified axis.-->
 									<function>
-										<Constant>
-											<value>0</value>
-										</Constant>
+										<LinearFunction>
+											<coefficients> 1 0</coefficients>
+										</LinearFunction>
 									</function>
 								</TransformAxis>
 								<!--3 Axes for translations are listed next.-->
