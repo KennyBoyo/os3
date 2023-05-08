@@ -304,15 +304,15 @@ OS3ROS::ProblemOutput OS3Engine::inverseD(void) {
     for (auto i = 0; i < input.names.size(); i++) {
         std::cout << "name" << input.names[i] << std::endl;
     }
-    for (auto i = 0; i < input.angles.size(); i++) {
-        std::cout << "angles" << input.angles[i] << std::endl;
-    }
-    for (auto i = 0; i < input.velocities.size(); i++) {
-        std::cout << "velocities" << input.velocities[i] << std::endl;
-    }
-    for (auto i = 0; i < input.wrench.size(); i++) {
-        std::cout << "wrench" << input.wrench[i] << std::endl;
-    }
+    // for (auto i = 0; i < input.angles.size(); i++) {
+    //     std::cout << "angles" << input.angles[i] << std::endl;
+    // }
+    // for (auto i = 0; i < input.velocities.size(); i++) {
+    //     std::cout << "velocities" << input.velocities[i] << std::endl;
+    // }
+    // for (auto i = 0; i < input.wrench.size(); i++) {
+    //     std::cout << "wrench" << input.wrench[i] << std::endl;
+    // }
 
     // output.timestamp = input.timestamp;
 
@@ -417,11 +417,14 @@ OS3ROS::ProblemOutput OS3Engine::inverseD(void) {
 
     SimTK::Vector residualMobilityForces = idSolver->solve(state_,Udot,appliedMobilityForces,appliedBodyForces);
     std::cout << "HERE" << std::endl;
+    for (auto i = 0; i < input.names.size(); i++) {
+        std::cout << "name" << input.names[i] << std::endl;
+    }
     for (auto i = 0; i < residualMobilityForces.size(); i++) {
         output.torques.push_back(residualMobilityForces[i]);
-        // output.names.push_back(input.names[i]);
-        // output.angles.push_back(input.angles[i]);
-        // output.velocities.push_back(input.velocities[i]);
+        output.names.push_back(input.names[i].c_str());
+        output.angles.push_back(input.angles[i]);
+        output.velocities.push_back(input.velocities[i]);
     }
 
     for (auto i = 0; i < output.names.size(); i++) {
@@ -437,7 +440,7 @@ OS3ROS::ProblemOutput OS3Engine::inverseD(void) {
         std::cout << "wrench" << output.torques[i] << std::endl;
     }
 
-    std::cout << output.names[0] << std::endl;
+    // std::cout << output.names[0] << std::endl;
     // output.names = input.names;
     // output.angles = input.angles;
     // output.velocities = input.velocities;

@@ -64,6 +64,7 @@ namespace OS3ROS {
         // std::thread problemSubThread(&createSubscriberThread, std::ref(RBcppClient), std::cref(problemSubFutureObj), std::cref(problemSubscriberThreadName), std::cref(problemSubscriberThreadTopic));
 
         RBcppClient.addClient("topic_advertiser");
+        // RBcppClient.advertise("topic_advertiser", "/os3/step_problem_solution", "sensor_msgs/JointState");
         RBcppClient.advertise("topic_advertiser", "/os3/step_problem_solution", "sensor_msgs/JointState");
 
         problemSubThread = new std::thread(&createSubscriberThread, std::ref(RBcppClient), std::cref(problemSubFutureObj), std::cref(problemSubscriberThreadName), std::cref(problemSubscriberThreadTopic), std::cref(problemSubscriberCallback));
@@ -111,7 +112,7 @@ namespace OS3ROS {
 
     }
 
-    /*
+    /*angles
     Threadsafe method to set the latest force (alternative to callback fn)
     */
     bool set_latest_solution(ProblemOutput problemOutput) {
@@ -200,8 +201,32 @@ namespace OS3ROS {
         //     std::vector<double> torques;
         // };
 
+        for (auto i = 0; i < problemOutput.names.size(); i++) {
+        std::cout << "name" << problemOutput.names[i] << std::endl;
+        }
+        for (auto i = 0; i < problemOutput.angles.size(); i++) {
+            std::cout << "angles" << problemOutput.angles[i] << std::endl;
+        }
+        for (auto i = 0; i < problemOutput.velocities.size(); i++) {
+            std::cout << "velocities" << problemOutput.velocities[i] << std::endl;
+        }
+        for (auto i = 0; i < problemOutput.torques.size(); i++) {
+            std::cout << "wrench" << problemOutput.torques[i] << std::endl;
+        }
+
         rapidjson::Document d(rapidjson::kStringType);
         d.SetObject();
+        rapidjson::Value header(rapidjson::kObjectType);
+        rapidjson::Value stamp(rapidjson::kObjectType);
+        // rapidjson::Value secs(0);
+        // rapidjson::Value nsecs(0);
+        rapidjson::Value frame_id("panda_link0");
+        rapidjson::Value seq(rapidjson::kNumberType);
+
+        header.AddMember("seq", seq, d.GetAllocator());
+        header.AddMember("stamp", stamp, d.GetAllocator());
+        header.AddMember("frame_id", frame_id, d.GetAllocator());
+
         // JSONArrayFromStrings(d, std::string("names"), problemOutput.names);
         
         rapidjson::Value names(rapidjson::kArrayType);
@@ -210,22 +235,30 @@ namespace OS3ROS {
         rapidjson::Value torques(rapidjson::kArrayType);
 
         for (int i = 0; i < problemOutput.names.size(); i++) {
-            names.PushBack(rapidjson::Value(problemOutput.names[i].c_str(), problemOutput.names[i].size()), d.GetAllocator());   // allocator is needed for potential realloc().
+            // names.PushBack(rapidjson::Value(problemOutput.names[i].c_str(), problemOutput.names[i].size()), d.GetAllocator());   // allocator is needed for potential realloc().
+            names.PushBack(rapidjson::Value("name"), d.GetAllocator());   // allocator is needed for potential realloc().
         }
         for (int i = 0; i < problemOutput.angles.size(); i++) {
-            angles.PushBack(rapidjson::Value(problemOutput.angles[i]).GetDouble(), d.GetAllocator());   // allocator is needed for potential realloc().
+            // angles.PushBack(rapidjson::Value(problemOutput.angles[i]).GetDouble(), d.GetAllocator());   // allocator is needed for potential realloc().
+            angles.PushBack(rapidjson::Value(1.0), d.GetAllocator());   // allocator is needed for potential realloc().
+
         }
         for (int i = 0; i < problemOutput.velocities.size(); i++) {
-            velocities.PushBack(problemOutput.velocities[i], d.GetAllocator());   // allocator is needed for potential realloc().
+            // velocities.PushBack(rapidjson::Value(problemOutput.velocities[i]), d.GetAllocator());   // allocator is needed for potential realloc().
+            velocities.PushBack(rapidjson::Value(1.0), d.GetAllocator());   // allocator is needed for potential realloc().
+
         }
         for (int i = 0; i < problemOutput.torques.size(); i++) {
-            torques.PushBack(problemOutput.torques[i], d.GetAllocator());   // allocator is needed for potential realloc().
+            // torques.PushBack(rapidjson::Value(problemOutput.torques[i]), d.GetAllocator());   // allocator is needed for potential realloc().
+            torques.PushBack(rapidjson::Value(1.0), d.GetAllocator());   // allocator is needed for potential realloc().
+            
         }
 
-        d.AddMember("names", names, d.GetAllocator());
-        d.AddMember("angles", angles, d.GetAllocator());
-        d.AddMember("velocities", velocities, d.GetAllocator());
-        d.AddMember("torques", torques, d.GetAllocator());
+        d.AddMember("name", names, d.GetAllocator());
+        d.AddMember("position", angles, d.GetAllocator());
+        d.AddMember("velocity", velocities, d.GetAllocator());
+        d.AddMember("effort", torques, d.GetAllocator());
+        d.AddMember("header", header, d.GetAllocator());
 
 
         rapidjson::StringBuffer buffer;
@@ -233,7 +266,7 @@ namespace OS3ROS {
         d.Accept(writer);
 
         // Output {"project":"rapidjson","stars":11}
-        std::cout << buffer.GetString() << std::endl;
+        // std::cout << buffer.GetString() << std::endl;
         std::cout << "publishing" << buffer.GetString() << std::endl;
 
         RBcppClient.publish("/os3/step_problem_solution",d);
@@ -311,6 +344,7 @@ namespace OS3ROS {
         pi.wrench.insert(pi.wrench.end(), wrenchList.begin(), wrenchList.end());
         SimTK::Vec3 force{pi.wrench[0], pi.wrench[1], pi.wrench[2]};
         SimTK::Vec3 torque{pi.wrench[3], pi.wrench[4], pi.wrench[5]};
+        // pi.header = problemDoc["msg"]["header"];
         
         pi.forceMag = sqrt(~force * force);
         if (pi.forceMag == 0) {
