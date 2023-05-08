@@ -17,7 +17,9 @@ namespace OS3ROS {
     void problemSubscriberCallback(std::shared_ptr<WsClient::Connection> /*connection*/, std::shared_ptr<WsClient::InMessage> in_message);
     // void createSubscriberThread(RosbridgeWsClient& client, const std::future<void>& futureObj, const std::string& clientName, const std::string& topicName, const InMessage& callback);
     void createSubscriberThread(RosbridgeWsClient& client, const std::future<void>& futureObj, const std::string& clientName, const std::string& topicName, const InMessage& callback);
-
+    void solutionPublisherThread(RosbridgeWsClient& client, const std::future<void>& futureObj);
+    bool publishState(OS3ROS::ProblemOutput problemOutput);
+    
     namespace {
         std::promise<void> problemSubExitSignal;
         std::thread* problemSubThread;
@@ -28,11 +30,15 @@ namespace OS3ROS {
         std::future<void> problemPubFutureObj;
 
         //public within namespace
-        RosbridgeWsClient RBcppClient("172.16.0.102:9090");
+        RosbridgeWsClient RBcppClient("127.0.0.1:9090");
+        // RosbridgeWsClient RBcppClient("172.16.0.102:9090");
 
         // Force Message Storage
         std::mutex problemMutex;
         static OS3ROS::ProblemInput latestProblem;
+        std::mutex solutionMutex;
+        static OS3ROS::ProblemOutput latestSolution;
+        bool _newSolutionAvailable;
 
         // Utilities
         
@@ -49,6 +55,7 @@ namespace OS3ROS {
 
 
     void init(void) {
+        _newSolutionAvailable = false;
         problemSubFutureObj = problemSubExitSignal.get_future();
 
         const std::string problemSubscriberThreadName = "problem_subscriber";
@@ -57,12 +64,12 @@ namespace OS3ROS {
         // std::thread problemSubThread(&createSubscriberThread, std::ref(RBcppClient), std::cref(problemSubFutureObj), std::cref(problemSubscriberThreadName), std::cref(problemSubscriberThreadTopic));
 
         RBcppClient.addClient("topic_advertiser");
-        RBcppClient.advertise("topic_advertiser", "/os3/step_problem_solution", "franka_panda_controller_swc/ArmJointPos");
+        RBcppClient.advertise("topic_advertiser", "/os3/step_problem_solution", "sensor_msgs/JointState");
 
         problemSubThread = new std::thread(&createSubscriberThread, std::ref(RBcppClient), std::cref(problemSubFutureObj), std::cref(problemSubscriberThreadName), std::cref(problemSubscriberThreadTopic), std::cref(problemSubscriberCallback));
     
         problemPubFutureObj = problemPubExitSignal.get_future();
-        problemPubThread = new std::thread(&positionPublisherThread, std::ref(RBcppClient), std::cref(problemPubFutureObj));
+        problemPubThread = new std::thread(&solutionPublisherThread, std::ref(RBcppClient), std::cref(problemPubFutureObj));
         std::this_thread::sleep_for(std::chrono::seconds(5));
         std::cout << " ...threads/clients created\n";
         
@@ -88,6 +95,7 @@ namespace OS3ROS {
         return false;
     }
 
+
     void createSubscriberThread(RosbridgeWsClient& client, const std::future<void>& futureObj, const std::string& clientName, const std::string& topicName, const InMessage& callback) {
 
         std::cout << "Subscribing to " << topicName << endl;
@@ -103,34 +111,48 @@ namespace OS3ROS {
 
     }
 
-    void positionPublisherThread(RosbridgeWsClient& client, const std::future<void>& futureObj) {
+    /*
+    Threadsafe method to set the latest force (alternative to callback fn)
+    */
+    bool set_latest_solution(ProblemOutput problemOutput) {
 
-        std::cout << "pos publisher";
+        if (solutionMutex.try_lock()) {
+            latestSolution = problemOutput;
+            _newSolutionAvailable = true;
+            solutionMutex.unlock();
+            return true;
+        }
+        return false;
+    }
 
-        client.addClient("position_publisher");
+    void solutionPublisherThread(RosbridgeWsClient& client, const std::future<void>& futureObj) {
 
-        OS3::ID_Output data;
+        std::cout << "solution publisher";
+
+        client.addClient("solution_publisher");
+
+        OS3ROS::ProblemOutput problemOutput;
         bool newData = false;
         // std::this_thread::sleep_for(std::chrono::seconds(10)); std::cout << "pub thread: ready for data";
         while(futureObj.wait_for(std::chrono::microseconds(500)) == std::future_status::timeout) {
             
-            if (posOutMutex.try_lock()) {
-                    if (_newPosAvailable) {
-                        data = latestPositionData;
+            if (solutionMutex.try_lock()) {
+                    if (_newSolutionAvailable) {
+                        problemOutput = latestSolution;
                         newData = true; //for this thread's reference
-                        _newPosAvailable = false; // we've accessed this data point, so mark it as old
+                        _newSolutionAvailable = false; // we've accessed this data point, so mark it as old
                     }
-                posOutMutex.unlock();
+                solutionMutex.unlock();
             }
             if (newData) {
-                publishState(data);
+                publishState(problemOutput);
                 newData = false;            
                 // std::cout << "             PUBTHREAD: pubbed!";
             }
             
         }
 
-        client.removeClient("position_publisher");
+        client.removeClient("solution_publisher");
         std::cout << "publisher thread has stopped" << std::endl;
 
         return;
@@ -143,7 +165,6 @@ namespace OS3ROS {
         for (int i = 0; i < vec.size(); i++) {
             arr.PushBack(vec[i], d.GetAllocator());   // allocator is needed for potential realloc().
         }
-
 
         rapidjson::Value str(rapidjson::kStringType);
         str.SetString(fieldName.c_str(), fieldName.size());
@@ -167,7 +188,10 @@ namespace OS3ROS {
 
     bool publishState(OS3ROS::ProblemOutput problemOutput) {
 
-
+        // std::cout << problemOutput.names[0] << std::endl;
+        // std::cout << problemOutput.angles[0] << std::endl;
+        // std::cout << problemOutput.velocities[0] << std::endl;
+        // std::cout << problemOutput.torques[0] << std::endl;
 
         // struct ProblemOutput {
         //     std::vector<std::string> names;
@@ -177,46 +201,51 @@ namespace OS3ROS {
         // };
 
         rapidjson::Document d(rapidjson::kStringType);
-        // d.SetObject();
-        JSONArrayFromStrings(d, std::string("names"), problemOutput.names);
+        d.SetObject();
+        // JSONArrayFromStrings(d, std::string("names"), problemOutput.names);
         
         rapidjson::Value names(rapidjson::kArrayType);
         rapidjson::Value angles(rapidjson::kArrayType);
         rapidjson::Value velocities(rapidjson::kArrayType);
         rapidjson::Value torques(rapidjson::kArrayType);
-        
-        for (int i = 0; i < problemOutput.names.size(); i++)
-            names.PushBack(i, d.GetAllocator());   // allocator is needed for potential realloc().
-        
-        for (int i = 0; i < problemOutput.names.size(); i++)
-            velocities.PushBack(i, d.GetAllocator());   // allocator is needed for potential realloc().
-        for (int i = 0; i < problemOutput.names.size(); i++)
-            torques.PushBack(i, d.GetAllocator());   // allocator is needed for potential realloc().
+
+        for (int i = 0; i < problemOutput.names.size(); i++) {
+            names.PushBack(rapidjson::Value(problemOutput.names[i].c_str(), problemOutput.names[i].size()), d.GetAllocator());   // allocator is needed for potential realloc().
+        }
+        for (int i = 0; i < problemOutput.angles.size(); i++) {
+            angles.PushBack(rapidjson::Value(problemOutput.angles[i]).GetDouble(), d.GetAllocator());   // allocator is needed for potential realloc().
+        }
+        for (int i = 0; i < problemOutput.velocities.size(); i++) {
+            velocities.PushBack(problemOutput.velocities[i], d.GetAllocator());   // allocator is needed for potential realloc().
+        }
+        for (int i = 0; i < problemOutput.torques.size(); i++) {
+            torques.PushBack(problemOutput.torques[i], d.GetAllocator());   // allocator is needed for potential realloc().
+        }
 
         d.AddMember("names", names, d.GetAllocator());
         d.AddMember("angles", angles, d.GetAllocator());
         d.AddMember("velocities", velocities, d.GetAllocator());
         d.AddMember("torques", torques, d.GetAllocator());
 
-        rapidjson::Value msg(rapidjson::kObjectType);
 
-        
-        JSONArrayFromStrings(d, std::string("names"), problemOutput.names);
-        
-        // std::cout << d["wrist"]["x"].GetDouble() << "<--wrist pos\n";
-        // std::cout << "    published stuff to /OS3topic   ";
-        RBcppClient.publish("/OS3topic",d);    //TODO Currently the rosbridgecpp library 
-                        //opens and closes a new connection each time a message is sent. 
-                        //This is computationally expensive and so the library should be modified accordingly
+        rapidjson::StringBuffer buffer;
+        rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
+        d.Accept(writer);
 
+        // Output {"project":"rapidjson","stars":11}
+        std::cout << buffer.GetString() << std::endl;
+        std::cout << "publishing" << buffer.GetString() << std::endl;
 
-        return true; //when should we return false? //TODO
+        RBcppClient.publish("/os3/step_problem_solution",d);
+        return true;
     }
 
     void problemSubscriberCallback(std::shared_ptr<WsClient::Connection>, std::shared_ptr<WsClient::InMessage> in_message)
     {  
 
         auto callIn =  std::chrono::steady_clock::now();
+        // std::cout << "subscriberCallback(): Message Received: " << in_message->string() << std::endl; //THIS DESTROYS THE BUFFER AND SO CAN ONLY BE CALLED ONCE
+        
         
         #undef LOGGING
         #ifdef LOGGING
@@ -228,6 +257,12 @@ namespace OS3ROS {
         if (problemDoc.Parse(in_message->string().c_str()).HasParseError() ) {
             std::cerr << "\n\nparse error\n" << std::endl;
         };
+
+        rapidjson::StringBuffer buffer;
+        rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
+        problemDoc.Accept(writer);
+
+        std::cout << "Received messsage " << buffer.GetString() << std::endl;
 
         assert(problemDoc.IsObject());    // Document is a JSON value represents the root of DOM. Root can be either an object or array
 
@@ -302,9 +337,11 @@ namespace OS3ROS {
 
         auto callOut = std::chrono::steady_clock::now();
         std::chrono::duration<double> callDur = std::chrono::duration_cast<std::chrono::duration<double>>(callOut - callIn);
+        #undef LOGGING
         #ifdef LOGGING
             std::cout << " calltime: " << callDur.count() << std::endl;
         #endif
+        // #undef LOGGING
     }
 
 }

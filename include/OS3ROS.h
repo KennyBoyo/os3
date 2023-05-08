@@ -36,5 +36,6 @@ namespace OS3ROS {
     
     ProblemInput get_latest_problem(void);
 
+    bool set_latest_solution(ProblemOutput problemOutput);
     bool set_latest_problem(ProblemInput problem);
 }

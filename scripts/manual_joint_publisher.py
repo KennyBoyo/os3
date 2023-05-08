@@ -58,7 +58,7 @@ def get_angle_to_axis(axis, b, a):
 if __name__ == "__main__":
     rospy.init_node("manual_joint_angles")
     rate = rospy.Rate(5) # ROS Rate at 5Hz
-    pub = rospy.Publisher("/problem_topic", JointState, queue_size=10)
+    pub = rospy.Publisher("/os3/synchronised_step_problem", JointState, queue_size=10)
     counter = 0
 
     default_msg = JointState()
@@ -80,10 +80,10 @@ if __name__ == "__main__":
                                                        np.array([0,0,1]),
                                                        np.array([0,0,2]))
     print(angles)
-    rot = 0 # y axis
-    elbow = 0
-    addu = -np.pi/2 # x axis
-    elev = np.pi/4 # z axis
+    rot = np.pi # y axis
+    elbow = np.pi/3
+    addu = 0 # x axis
+    elev = 0 #np.pi/4 # z axis
 
     # elbow = np.pi/2
     # addu = thetas[1]
@@ -96,8 +96,8 @@ if __name__ == "__main__":
         default_msg.position = [elev,rot,addu,elbow]
         # print(default_msg.position)
 
-        elev -= 0.1
-        elev = elev%(2*np.pi)
+        # elev -= 0.1
+        # elev = elev%(2*np.pi)
 
         # addu += 0.1
         # addu = addu%(2*np.pi)
