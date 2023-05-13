@@ -57,7 +57,7 @@ def get_angle_to_axis(axis, b, a):
 
 if __name__ == "__main__":
     rospy.init_node("manual_joint_angles")
-    rate = rospy.Rate(5) # ROS Rate at 5Hz
+    rate = rospy.Rate(30) # ROS Rate at 5Hz
     pub = rospy.Publisher("/os3/synchronised_step_problem", JointState, queue_size=10)
     counter = 0
 
@@ -80,10 +80,10 @@ if __name__ == "__main__":
                                                        np.array([0,0,1]),
                                                        np.array([0,0,2]))
     print(angles)
-    rot = np.pi # y axis
-    elbow = np.pi/3
+    rot = 0 # y axis
+    elbow = 0
     addu = 0 # x axis
-    elev = 0 #np.pi/4 # z axis
+    elev = np.pi/2 #np.pi/4 # z axis
 
     # elbow = np.pi/2
     # addu = thetas[1]
@@ -91,17 +91,101 @@ if __name__ == "__main__":
     # elev = thetas[2]
 
     while not rospy.is_shutdown():
-        counter += 1
-        default_msg.header.stamp = rospy.Time.now()
-        default_msg.position = [elev,rot,addu,elbow]
-        # print(default_msg.position)
 
-        # elev -= 0.1
-        # elev = elev%(2*np.pi)
+        counter = 0 
+        rot = 0 # y axis
+        elbow = 0
+        addu = 0 # x axis
+        elev = np.pi/2 #np.pi/4 # z axis
+        while counter <30:
+            counter += 1 
+            default_msg.header.stamp = rospy.Time.now()
+            default_msg.position = [elev,rot,addu,elbow]
+            # print(default_msg.position)
 
-        # addu += 0.1
-        # addu = addu%(2*np.pi)
+            elev -= 1/30
+            elev = elev%(2*np.pi)
 
+            addu += 1/30
+            addu = addu%(2*np.pi)
+
+            pub.publish(default_msg)
+            rate.sleep()
+
+        counter = 0 
+        rot = 0 # y axis
+        elbow = 0
+        addu = 0 # x axis
+        elev = np.pi/2 #np.pi/4 # z axis
+        while counter < 5 * 30:
+            counter += 1 
+            default_msg.header.stamp = rospy.Time.now()
+            default_msg.position = [elev,rot,addu,elbow]
+            # print(default_msg.position)
+
+            addu += 1/30
+            addu = addu%(2*np.pi)
+
+            pub.publish(default_msg)
+            rate.sleep()
+
+        counter = 0 
+        rot = 0 # y axis
+        elbow = 0
+        addu = 0 # x axis
+        elev = np.pi/2 #np.pi/4 # z axis
+        while counter < 5 * 30:
+            counter += 1 
+            default_msg.header.stamp = rospy.Time.now()
+            default_msg.position = [elev,rot,addu,elbow]
+            # print(default_msg.position)
+
+            elev -= 1/30
+            elev = elev%(2*np.pi)
+
+            pub.publish(default_msg)
+            rate.sleep()
+
+
+        counter = 0 
+        rot = 0 # y axis
+        elbow = 0
+        addu = 0 # x axis
+        elev = np.pi/2 #np.pi/4 # z axis
+        while counter < 5 * 30:
+            counter += 1 
+            default_msg.header.stamp = rospy.Time.now()
+            default_msg.position = [elev,rot,addu,elbow]
+            # print(default_msg.position)
+
+            elev -= 1/30
+            elev = elev%(2*np.pi)
+
+            addu += 1/30
+            addu = addu%(2*np.pi)
+
+            pub.publish(default_msg)
+            rate.sleep()
+
+        counter = 0 
+        rot = 0 # y axis
+        elbow = 0
+        addu = 0 # x axis
+        elev = -np.pi/2 #np.pi/4 # z axis
+        while counter < 5 * 30:
+            counter += 1 
+            default_msg.header.stamp = rospy.Time.now()
+            default_msg.position = [elev,rot,addu,elbow]
+            # print(default_msg.position)
+
+            elev -= 1/30
+            elev = elev%(2*np.pi)
+
+            addu += 1/30
+            addu = addu%(2*np.pi)
+
+            pub.publish(default_msg)
+            rate.sleep()
         # elbow += 0.1
         # elbow = elbow%(2*np.pi)
         
