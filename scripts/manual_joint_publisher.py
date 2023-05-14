@@ -97,7 +97,7 @@ if __name__ == "__main__":
         elbow = 0
         addu = 0 # x axis
         elev = np.pi/2 #np.pi/4 # z axis
-        while counter <30:
+        while counter < 10 * 30:
             counter += 1 
             default_msg.header.stamp = rospy.Time.now()
             default_msg.position = [elev,rot,addu,elbow]
@@ -117,7 +117,7 @@ if __name__ == "__main__":
         elbow = 0
         addu = 0 # x axis
         elev = np.pi/2 #np.pi/4 # z axis
-        while counter < 5 * 30:
+        while counter < 10 * 30:
             counter += 1 
             default_msg.header.stamp = rospy.Time.now()
             default_msg.position = [elev,rot,addu,elbow]
@@ -134,7 +134,7 @@ if __name__ == "__main__":
         elbow = 0
         addu = 0 # x axis
         elev = np.pi/2 #np.pi/4 # z axis
-        while counter < 5 * 30:
+        while counter < 10 * 30:
             counter += 1 
             default_msg.header.stamp = rospy.Time.now()
             default_msg.position = [elev,rot,addu,elbow]
@@ -152,7 +152,7 @@ if __name__ == "__main__":
         elbow = 0
         addu = 0 # x axis
         elev = np.pi/2 #np.pi/4 # z axis
-        while counter < 5 * 30:
+        while counter < 10 * 30:
             counter += 1 
             default_msg.header.stamp = rospy.Time.now()
             default_msg.position = [elev,rot,addu,elbow]
@@ -172,7 +172,7 @@ if __name__ == "__main__":
         elbow = 0
         addu = 0 # x axis
         elev = -np.pi/2 #np.pi/4 # z axis
-        while counter < 5 * 30:
+        while counter < 10 * 30:
             counter += 1 
             default_msg.header.stamp = rospy.Time.now()
             default_msg.position = [elev,rot,addu,elbow]

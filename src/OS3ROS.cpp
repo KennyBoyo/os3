@@ -75,7 +75,7 @@ namespace OS3ROS
 
         problemPubFutureObj = problemPubExitSignal.get_future();
         problemPubThread = new std::thread(&solutionPublisherThread, std::ref(RBcppClient), std::cref(problemPubFutureObj));
-        std::this_thread::sleep_for(std::chrono::seconds(5));
+        std::this_thread::sleep_for(std::chrono::seconds(1));
         std::cout << " ...threads/clients created\n";
 
         return;
@@ -299,10 +299,10 @@ namespace OS3ROS
         auto callIn = std::chrono::steady_clock::now();
         // std::cout << "subscriberCallback(): Message Received: " << in_message->string() << std::endl; //THIS DESTROYS THE BUFFER AND SO CAN ONLY BE CALLED ONCE
 
-#undef LOGGING
-#ifdef LOGGING
-        std::cout << "subscriberCallback(): Message Received: " << in_message->string() << std::endl; // THIS DESTROYS THE BUFFER AND SO CAN ONLY BE CALLED ONCE
-#endif
+        #undef LOGGING
+        #ifdef LOGGING
+            std::cout << "subscriberCallback(): Message Received: " << in_message->string() << std::endl; // THIS DESTROYS THE BUFFER AND SO CAN ONLY BE CALLED ONCE
+        #endif
 
         rapidjson::Document problemDoc;
 
@@ -327,9 +327,9 @@ namespace OS3ROS
         assert(problemDoc["msg"]["header"]["stamp"].HasMember("nsecs"));
         double timestamp = problemDoc["msg"]["header"]["stamp"]["secs"].GetUint() + ((double)(problemDoc["msg"]["header"]["stamp"]["nsecs"].GetUint())) / 1000000000;
 
-#ifdef LOGGING
-        std::cout << "Message Time: " << timestamp << std::endl;
-#endif
+        #ifdef LOGGING
+            std::cout << "Message Time: " << timestamp << std::endl;
+        #endif
 
         // Check Arm Joint Names Present
         assert(problemDoc["msg"].HasMember("name"));
