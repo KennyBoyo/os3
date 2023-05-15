@@ -347,11 +347,11 @@ OS3ROS::ProblemOutput OS3Engine::inverseD(void) {
     // r_elbow_flex
     const OpenSim::Coordinate& IDElbowFlex = IDelbowJoint.getCoordinate();
     // r_shoulder_elev
-    const OpenSim::Coordinate& IDShoulderFlex = IDshoulderJoint.get_coordinates(0);
+    const OpenSim::Coordinate& IDShoulderFlex = IDjointset.get("r_shoulder1").get_coordinates(0);
     // r_shoulder_rot
     const OpenSim::Coordinate& IDShoulderRot = IDjointset.get("r_shoulder2").get_coordinates(0);
     // r_shoulder_add
-    const OpenSim::Coordinate& IDShoulderAdd = IDjointset.get("r_shoulder1").get_coordinates(0);
+    const OpenSim::Coordinate& IDShoulderAdd = IDshoulderJoint.get_coordinates(0);
 
 
 
