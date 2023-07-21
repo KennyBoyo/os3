@@ -4,6 +4,10 @@ import rospy
 import numpy as np
 from sensor_msgs.msg import JointState
 
+
+"""
+Script used to mock an OS3ProblemInput    
+"""
 class ManualJointAngles():
     def __init__(self, listening_topic, publish_topic):
         pass
@@ -67,15 +71,6 @@ if __name__ == "__main__":
     default_msg.velocity = [0]*4
     default_msg.effort = [1]*4
 
-    # addu_axis = np.array([0.99826136, -0, 0.05889802])   # x axis
-    # rot_axis  = np.array([0,1,0])    # y axis
-    # elev_axis = np.array([-0.05889802, 0.0023, 0.99826136])   # z axis
-    # thetas = []
-    # vec = np.array([1, 0,0])
-    # for axis in [addu_axis, rot_axis, elev_axis]:
-    #     thetas.append(get_angle_to_axis(axis, np.array([0,-1,0]), vec))
-    # print(thetas)
-
     angles = ManualJointAngles("", "").get_upper_limb_angles(np.array([0,0,0]),
                                                        np.array([0,0,1]),
                                                        np.array([0,0,2]))
@@ -84,11 +79,6 @@ if __name__ == "__main__":
     elbow = 0
     addu = 0 # x axis
     elev = np.pi/2 #np.pi/4 # z axis
-
-    # elbow = np.pi/2
-    # addu = thetas[1]
-    # rot = -thetas[0]
-    # elev = thetas[2]
 
     while not rospy.is_shutdown():
 
@@ -186,11 +176,6 @@ if __name__ == "__main__":
 
             pub.publish(default_msg)
             rate.sleep()
-        # elbow += 0.1
-        # elbow = elbow%(2*np.pi)
-        
-        # rot += 0.1
-        # rot = rot%(2*np.pi)
 
         pub.publish(default_msg)
         rate.sleep()

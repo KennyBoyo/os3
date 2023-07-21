@@ -66,8 +66,7 @@ bool OS3Engine::generateIDModel(void) {
     prevSimTime = 0; //can be overriden by control
 
     //import model
-    IDModel =  OpenSim::Model("Models/arm26-mod.osim"); std::cout << "loaded model from arm26-mod" << std::endl;
-    std::cout << IDModel.getName() << "<----------------model name\n\n";
+    IDModel =  OpenSim::Model("Models/arm26-mod.osim");
     //setup everything
     Vec3 grav = IDModel.get_gravity()*0; //end effector force is the net force (so includes gravity)
     IDModel.set_gravity(grav); //redundant unless we change grav above
@@ -86,8 +85,6 @@ bool OS3Engine::generateIDModel(void) {
     const OpenSim::BodySet& IDbodyset = IDModel.get_BodySet();
     const OpenSim::Body& humerusbod = IDbodyset.get("r_humerus");
     const OpenSim::Body& radiusbod = IDbodyset.get("r_ulna_radius_hand");
-    std::cout << humerusbod.getName() << "<---name of humerusbod\n";
-    std::cout << radiusbod.getName() << "<---name of radiusbod\n";
     IDbodyset.print("bodyset.bods");
 
     //get muscles and disable
@@ -103,22 +100,18 @@ bool OS3Engine::generateIDModel(void) {
 
     endEffector.set_body(radiusbod.getName());
     endEffector.setName("end_effector");
-    std::cout << endEffector.get_body() << "  <-- name of body for end effector \n";
     endEffector.set_point(wristPointLoc);
     endEffector.set_point_is_global(false); //point coordinates are relative to radius
     endEffector.set_force_is_global(true); //force coordinates will be in ground frame
     endEffector.set_direction(SimTK::Vec3(1,0,0));   //x is front, y is up, 
-    std::cout << endEffector.get_direction() << "<-- eE dir\n";//endEffector.set_direction(SimTK::Vec3(1,1,1));
     double optimalEndForce = 100; //Newtons (should be maximum force)
     endEffector.setOptimalForce(optimalEndForce);
     
-    std::cout << endEffector.getOptimalForce() << "  <-- optimal force from endeffector\n";
 
     IDModel.addForce(&endEffector);
     IDModel.finalizeConnections();
     IDModel.setUseVisualizer(true);
-    SimTK::State& si = IDModel.initSystem(); std::cout << "hello there\n";
-    std::cout << endEffector.get_appliesForce() << "<-- that end effector is applying force---------------------\n";
+    SimTK::State& si = IDModel.initSystem();
 
     Vector endEffectorControls(1);
     endEffectorControls(0) = 1*0;// 0 for realtime (controls will be added back later)
