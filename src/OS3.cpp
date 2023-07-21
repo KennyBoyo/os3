@@ -34,8 +34,6 @@ int main(int argc, char** argv) {
                 break;
         }
     }
-
-    cout << "Experiment Over" << endl;
     return true;
 }
 

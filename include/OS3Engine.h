@@ -25,9 +25,8 @@ class OS3Engine {
     
     private:
 
-        int programState; //running/stopping
-        // static SimTK::Vec<3,double> latestForce;
-        bool generateIDModel(void); //imports/configures inverse dynamics model
+        int programState;
+        bool generateIDModel(void);
         OpenSim::Model IDModel;
         OpenSim::Manager* IDmanager;
         OpenSim::InverseDynamicsSolver* idSolver;
