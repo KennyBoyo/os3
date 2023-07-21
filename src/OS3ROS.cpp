@@ -74,7 +74,7 @@ namespace OS3ROS
 
         problemPubFutureObj = problemPubExitSignal.get_future();
         problemPubThread = new std::thread(&solutionPublisherThread, std::ref(RBcppClient), std::cref(problemPubFutureObj));
-        std::this_thread::sleep_for(std::chrono::seconds(5));
+        std::this_thread::sleep_for(std::chrono::seconds(1));
 
         return;
     }
